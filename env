@@ -1,0 +1,19 @@
+# Config Environment.
+# All not commented options have to be set.
+
+# API Server config
+# Secret key for the cookie store.
+# Create one by using e.g.
+# cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+MONDANE_API_COOKIE_KEY=
+# MONDANE_API_DATABASE_DIALECT=sqlite3
+# ONDANE_API_DATABASE./mondane.db
+# MONDANE_API_LISTEN=:8080
+
+# Email Server Config
+MONDANE_MAIL_USERNAME=
+MONDANE_MAIL_PASSWORD=
+MONDANE_MAIL_SERVER=
+# MONDANE_MAIL_HOST=25
+MONDANE_MAIL_FROM=
+# MONDANE_API_LISTEN=8081

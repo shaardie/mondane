@@ -1,0 +1,5 @@
+api-server
+mail-server
+.env
+*.db
+coverage.out
