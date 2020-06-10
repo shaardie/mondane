@@ -7,7 +7,7 @@
 # cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
 MONDANE_API_COOKIE_KEY=
 # MONDANE_API_DATABASE_DIALECT=sqlite3
-# ONDANE_API_DATABASE./mondane.db
+# MONDANE_API_DATABASE./mondane.db
 # MONDANE_API_LISTEN=:8080
 
 # Email Server Config
