@@ -1,0 +1,8 @@
+api-server
+mail-server
+.env
+*.db
+coverage.out
+*.pb.go
+./user-client
+./user-service

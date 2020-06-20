@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+option go_package = "user/proto";
+
+service UserService{
+    rpc Get(User) returns (User) {}
+    rpc GetByEmail(User) returns (User) {}
+    rpc New(User) returns (ActivationToken) {}
+    rpc Activate(ActivationToken) returns (Response) {}
+    rpc Update(User) returns (User) {}
+    rpc Auth(User) returns (Token) {}
+    rpc ValidateToken(Token) returns (ValidatedToken) {}
+}
+
+message User {
+    uint64 id = 1;
+    string email = 2;
+    string firstname = 3;
+    string surname = 4;
+    bytes Password = 5;
+}
+
+message Token {
+    string token = 1;
+}
+
+message ValidatedToken {
+    User user = 2;
+    bool valid = 3;
+}
+
+message Response {}
+
+message ActivationToken {
+    string token = 2;
+}
