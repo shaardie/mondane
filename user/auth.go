@@ -5,9 +5,6 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 
-	// database driver
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/shaardie/mondane/user/proto"
 )
 

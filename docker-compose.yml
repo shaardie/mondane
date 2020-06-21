@@ -1,0 +1,25 @@
+---
+
+version: '2'
+
+services:
+  mail-service:
+    build:
+      context: .
+      dockerfile: ./docker/mail-service/Dockerfile
+    env_file: ./docker/mail-service/env
+  user-service:
+    build:
+      context: .
+      dockerfile: ./docker/user-service/Dockerfile
+    env_file: ./docker/user-service/env
+  sql-database:
+    build: ./docker/sql-database/
+    volumes:
+      - sql-database:/var/lib/mysql/
+    ports:
+      - 3306:3306
+    env_file: ./docker/sql-database/env
+
+volumes:
+  sql-database:

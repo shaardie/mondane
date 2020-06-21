@@ -8,6 +8,10 @@ import (
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/crypto/bcrypt"
 
+	// database driver
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/shaardie/mondane/user/proto"
 )
 
