@@ -1,10 +1,14 @@
 USER_SERVICE=user-service
 USER_CLIENT=user-client
+
 MAIL_SERVICE=mail-service
 MAIL_CLIENT=mail-client
 
-SERVICES=$(USER_SERVICE) $(MAIL_SERVICE)
-CLIENTS=$(USER_CLIENT) $(MAIL_CLIENT)
+HTTPCHECK_SERVICE=httpcheck-service
+HTTPCHECK_CLIENT=httpcheck-client
+
+SERVICES=$(USER_SERVICE) $(MAIL_SERVICE) $(HTTPCHECK_SERVICE)
+CLIENTS=$(USER_CLIENT) $(MAIL_CLIENT) $(HTTPCHECK_CLIENT)
 
 
 
@@ -33,14 +37,20 @@ $(MAIL_SERVICE): mail/proto/mail.pb.go
 $(MAIL_CLIENT): mail/proto/mail.pb.go
 	go build -o $(MAIL_CLIENT) cmd/$(MAIL_CLIENT)/main.go
 
-docker-images:
-	docker build -t mondane/$(USER_SERVICE) -f docker/$(USER_SERVICE)/Dockerfile .
-	docker build -t mondane/$(MAIL_SERVICE) -f docker/$(MAIL_SERVICE)/Dockerfile .
+httpcheck/proto/httpcheck.pb.go: httpcheck/proto/httpcheck.proto
+	protoc --proto_path=. --go_out=plugins=grpc:. --go_opt=paths=source_relative httpcheck/proto/httpcheck.proto
+
+$(HTTPCHECK_SERVICE): httpcheck/proto/httpcheck.pb.go
+	go build -o $(HTTPCHECK_SERVICE) cmd/$(HTTPCHECK_SERVICE)/main.go
+
+$(HTTPCHECK_CLIENT): httpcheck/proto/httpcheck.pb.go
+	go build -o $(HTTPCHECK_CLIENT) cmd/$(HTTPCHECK_CLIENT)/main.go
 
 clean:
 	go clean
 	rm -rf $(SERVICES) $(CLIENTS)\
 		user/proto/user.pb.go \
-		mail/proto/mail.pb.go
+		mail/proto/mail.pb.go \
+		httpcheck/proto/httpcheck.pb.go
 
-.PHONY: all build docker-images $(SERVICES) $(CLIENTS)
+.PHONY: all build $(SERVICES) $(CLIENTS)

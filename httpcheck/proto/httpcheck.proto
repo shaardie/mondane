@@ -1,0 +1,39 @@
+syntax = "proto3";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "httpcheck/proto";
+
+service HTTPCheckService {
+    rpc GetCheck (Check) returns (Check);
+    rpc GetChecksByUser (User) returns (Checks);
+    rpc CreateCheck (Check) returns (Check);
+    rpc DeleteCheck (Check) returns (Response);
+    rpc GetResults (Check) returns (Results);
+}
+
+message Response {}
+
+message Checks {
+    repeated Check checks = 1;
+}
+
+message Check {
+    uint64 id = 1;
+    uint64 user_id = 2;
+    string url = 3;
+}
+
+message Result {
+    uint64 id = 1;
+    uint64 check_id = 2;
+    google.protobuf.Timestamp timestamp = 3;
+    bool success = 4;
+}
+
+message Results {
+    repeated Result results = 1;
+}
+
+message User {
+    uint64 id = 1;
+}

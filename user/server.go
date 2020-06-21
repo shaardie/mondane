@@ -22,10 +22,9 @@ import (
 
 // Config read from environment
 type config struct {
-	TokenKey        string `env:"MONDANE_USER_TOKEN_KEY,required"`
-	DatabaseDialect string `env:"MONDANE_USER_DATABASE_DIALECT,default=sqlite3"`
-	Database        string `env:"MONDANE_USER_DATABASE,default=./mondane.db"`
-	Listen          string `env:"MONDANE_USER_LISTEN,default=:8080"`
+	TokenKey string `env:"MONDANE_USER_TOKEN_KEY,required"`
+	Database string `env:"MONDANE_USER_DATABASE,required"`
+	Listen   string `env:"MONDANE_USER_LISTEN,default=:8080"`
 }
 
 // grpc server with all resources
@@ -41,7 +40,7 @@ func (s *server) init(ctx context.Context, req interface{}, info *grpc.UnaryServ
 	s.initOnce.Do(func() {
 		// Connect to database
 		if s.db == nil {
-			db, err := newSQLRepository(s.config.DatabaseDialect, s.config.Database)
+			db, err := newSQLRepository("mysql", s.config.Database)
 			if err != nil {
 				log.Fatalf("Unable to connect to database, %v", err)
 			}
@@ -147,7 +146,7 @@ func (s *server) New(ctx context.Context, req *proto.User) (*proto.ActivationTok
 	res := &proto.ActivationToken{}
 
 	// Create new user in database
-	token, err := s.db.new(ctx, marshallUser(req))
+	token, err := s.db.new(ctx, marshalUser(req))
 	if err != nil {
 		return res, err
 	}
@@ -171,7 +170,7 @@ func (s *server) Update(ctx context.Context, req *proto.User) (*proto.User, erro
 	}
 
 	// Update user in database
-	user, err := s.db.update(ctx, marshallUser(req))
+	user, err := s.db.update(ctx, marshalUser(req))
 	if err == nil {
 		res = unmarshalUser(user)
 	}

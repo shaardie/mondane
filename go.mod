@@ -10,7 +10,6 @@ require (
 	github.com/golang/protobuf v1.4.1
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/joeshaw/envdecode v0.0.0-20200121155833-099f1fc765bd
-	github.com/mattn/go-sqlite3 v1.14.0
 	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
 	google.golang.org/grpc v1.29.1
 	google.golang.org/protobuf v1.24.0

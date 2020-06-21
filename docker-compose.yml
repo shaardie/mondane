@@ -8,18 +8,33 @@ services:
       context: .
       dockerfile: ./docker/mail-service/Dockerfile
     env_file: ./docker/mail-service/env
+    ports:
+      - 127.0.0.1:8081:80
+    restart: always
   user-service:
     build:
       context: .
       dockerfile: ./docker/user-service/Dockerfile
     env_file: ./docker/user-service/env
+    ports:
+      - 127.0.0.1:8082:80
+    restart: always
+  httpcheck-service:
+    build:
+      context: .
+      dockerfile: ./docker/httpcheck-service/Dockerfile
+    env_file: ./docker/httpcheck-service/env
+    ports:
+      - 127.0.0.1:8083:80
+    restart: always
   sql-database:
     build: ./docker/sql-database/
     volumes:
       - sql-database:/var/lib/mysql/
     ports:
-      - 3306:3306
+      - 127.0.0.1:3306:3306
     env_file: ./docker/sql-database/env
+    restart: always
 
 volumes:
   sql-database:
