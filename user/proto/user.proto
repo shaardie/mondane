@@ -2,7 +2,7 @@ syntax = "proto3";
 
 option go_package = "user/proto";
 
-service UserService{
+service UserService {
     rpc Get(User) returns (User) {}
     rpc GetByEmail(User) returns (User) {}
     rpc New(User) returns (ActivationToken) {}

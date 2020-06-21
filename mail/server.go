@@ -20,7 +20,7 @@ type config struct {
 	Server   string `env:"MONDANE_MAIL_SERVER,required"`
 	Port     int    `env:"MONDANE_MAIL_HOST,default=25"`
 	From     string `env:"MONDANE_MAIL_FROM,required"`
-	Listen   string `env:"MONDANE_API_LISTEN,default=:8080"`
+	Listen   string `env:"MONDANE_MAIL_LISTEN,default=:8080"`
 }
 
 type server struct {

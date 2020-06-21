@@ -10,7 +10,6 @@ import (
 
 	// database driver
 	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/shaardie/mondane/user/proto"
 )
@@ -135,8 +134,8 @@ func (s *sqlRepository) update(ctx context.Context, u *user) (*user, error) {
 	return user, err
 }
 
-// marshallUser is a helper function to create a database user from a grpc user
-func marshallUser(u *proto.User) *user {
+// marshalUser is a helper function to create a database user from a grpc user
+func marshalUser(u *proto.User) *user {
 	return &user{
 		ID:        u.Id,
 		Email:     u.Email,
@@ -146,7 +145,7 @@ func marshallUser(u *proto.User) *user {
 	}
 }
 
-// unmarshallUser is a helper function to create a grpc user from a database user
+// unmarshalUser is a helper function to create a grpc user from a database user
 func unmarshalUser(u *user) *proto.User {
 	return &proto.User{
 		Id:        u.ID,

@@ -2,8 +2,10 @@
 *.db
 coverage.out
 *.pb.go
+
 /user-client
 /user-service
-
 /mail-service
 /mail-client
+/httpcheck-service
+/httpcheck-client
