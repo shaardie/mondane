@@ -127,7 +127,7 @@ func (s *server) Firing(ctx context.Context, check *proto.Check) (*proto.Respons
 		log.Printf("Attempt to fire alert %v", alert.ID)
 
 		// Get user
-		u, err := s.user.Get(ctx, &user.User{Id: alert.ID})
+		u, err := s.user.Get(ctx, &user.User{Id: alert.UserID})
 		if err != nil {
 			return nil, err
 		}
