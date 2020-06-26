@@ -17,7 +17,7 @@ import (
 // Config read from environment
 type config struct {
 	Database string `env:"MONDANE_HTTPCHECK_DATABASE,required"`
-	Listen   string `env:"MONDANE_HTTPCHECK_LISTEN,default=:8080"`
+	Listen   string `env:"MONDANE_HTTPCHECK_LISTEN,default=:8083"`
 	Alert    string `env:"MONDANE_ALERT_SERVER,required"`
 }
 

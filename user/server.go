@@ -21,7 +21,7 @@ import (
 type config struct {
 	TokenKey string `env:"MONDANE_USER_TOKEN_KEY,required"`
 	Database string `env:"MONDANE_USER_DATABASE,required"`
-	Listen   string `env:"MONDANE_USER_LISTEN,default=:8080"`
+	Listen   string `env:"MONDANE_USER_LISTEN,default=:8082"`
 }
 
 // grpc server with all resources

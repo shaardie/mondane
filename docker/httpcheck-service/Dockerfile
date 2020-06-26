@@ -10,5 +10,5 @@ RUN make httpcheck-service
 
 FROM registry.hub.docker.com/library/alpine:latest
 COPY --from=builder /mondane/httpcheck-service /httpcheck-service
-EXPOSE 80
+EXPOSE 8083
 CMD ["/httpcheck-service"]

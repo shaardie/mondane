@@ -21,7 +21,7 @@ type config struct {
 	Database string `env:"MONDANE_ALERT_DATABASE,required"`
 	Mail     string `env:"MONDANE_ALERT_MAIL_SERVER,required"`
 	User     string `env:"MONDANE_ALERT_USER_SERVER,required"`
-	Listen   string `env:"MONDANE_ALERT_LISTEN,default=:8080"`
+	Listen   string `env:"MONDANE_ALERT_LISTEN,default=:8084"`
 }
 
 // grpc server with all resources

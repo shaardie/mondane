@@ -10,5 +10,5 @@ RUN make alert-service
 
 FROM registry.hub.docker.com/library/alpine:latest
 COPY --from=builder /mondane/alert-service /alert-service
-EXPOSE 80
+EXPOSE 8084
 CMD ["/alert-service"]

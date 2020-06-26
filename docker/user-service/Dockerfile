@@ -10,5 +10,5 @@ RUN make user-service
 
 FROM registry.hub.docker.com/library/alpine:latest
 COPY --from=builder /mondane/user-service /user-service
-EXPOSE 80
+EXPOSE 8082
 CMD ["/user-service"]

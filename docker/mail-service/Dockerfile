@@ -10,5 +10,5 @@ RUN make mail-service
 
 FROM registry.hub.docker.com/library/alpine:latest
 COPY --from=builder /mondane/mail-service /mail-service
-EXPOSE 80
+EXPOSE 8081
 CMD ["/mail-service"]

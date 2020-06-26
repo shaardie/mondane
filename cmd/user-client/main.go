@@ -16,7 +16,7 @@ import (
 
 var (
 	// Command line arguments
-	server            = kingpin.Flag("server", "server address").Default("127.0.0.1:8080").String()
+	server            = kingpin.Flag("server", "server address").Default("127.0.0.1:8082").String()
 	authenticateToken = kingpin.Flag("token", "authentication token").String()
 	register          = kingpin.Command("register", "Register a new user.")
 	registerEmail     = register.Arg("email", "email for user").Required().String()

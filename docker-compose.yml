@@ -9,7 +9,7 @@ services:
       dockerfile: ./docker/mail-service/Dockerfile
     env_file: ./docker/mail-service/env
     ports:
-      - 127.0.0.1:8081:80
+      - 127.0.0.1:8081:8081
     restart: always
   user-service:
     build:
@@ -17,7 +17,7 @@ services:
       dockerfile: ./docker/user-service/Dockerfile
     env_file: ./docker/user-service/env
     ports:
-      - 127.0.0.1:8082:80
+      - 127.0.0.1:8082:8082
     restart: always
   httpcheck-service:
     build:
@@ -25,7 +25,7 @@ services:
       dockerfile: ./docker/httpcheck-service/Dockerfile
     env_file: ./docker/httpcheck-service/env
     ports:
-      - 127.0.0.1:8083:80
+      - 127.0.0.1:8083:8083
     restart: always
   alert-service:
     build:
@@ -33,7 +33,7 @@ services:
       dockerfile: ./docker/alert-service/Dockerfile
     env_file: ./docker/alert-service/env
     ports:
-      - 127.0.0.1:8084:80
+      - 127.0.0.1:8084:8084
     restart: always
   sql-database:
     build: ./docker/sql-database/

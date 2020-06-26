@@ -15,7 +15,7 @@ import (
 
 var (
 	// Command line arguments
-	server = kingpin.Flag("server", "server address").Default("127.0.0.1:8080").String()
+	server = kingpin.Flag("server", "server address").Default("127.0.0.1:8084").String()
 
 	create           = kingpin.Command("create", "create an alert")
 	createUserID     = create.Arg("user-id", "user id of the alert").Required().Uint64()

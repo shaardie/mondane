@@ -13,7 +13,7 @@ import (
 
 var (
 	// Command line arguments
-	server    = kingpin.Flag("server", "server address").Default("127.0.0.1:8080").String()
+	server    = kingpin.Flag("server", "server address").Default("127.0.0.1:8081").String()
 	recipient = kingpin.Arg("recipient", "recipient of the mail").Required().String()
 	subject   = kingpin.Arg("subject", "subject of the mail").Required().String()
 	message   = kingpin.Arg("message", "message of the mail").Required().String()
