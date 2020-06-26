@@ -1,0 +1,42 @@
+syntax = "proto3";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+
+package mondane.alert;
+
+option go_package = "alert/proto";
+
+service AlertService {
+    rpc getAlert(Id) returns (Alert);
+    rpc getAlertsByUser(Id) returns (Alerts);
+    rpc createAlert(Alert) returns (Response);
+    rpc deleteAlert(Id) returns (Response);
+
+    rpc firing(Check) returns (Response);
+}
+
+message Id {
+    uint64 id = 1;
+}
+
+message Check {
+    uint64 id = 1;
+    string type = 2;
+}
+
+message Alerts {
+    repeated Alert alerts = 1;
+}
+
+message Alert {
+    uint64 id = 1;
+    uint64 user_id = 2;
+    uint64 check_id = 3;
+    string check_type = 4;
+    bool send_mail = 5;
+    google.protobuf.Timestamp last_send = 6;
+    google.protobuf.Duration send_period = 7;
+}
+
+message Response {}

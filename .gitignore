@@ -9,3 +9,5 @@ coverage.out
 /mail-client
 /httpcheck-service
 /httpcheck-client
+/alert-service
+/alert-client

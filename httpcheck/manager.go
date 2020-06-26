@@ -6,20 +6,26 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	alert "github.com/shaardie/mondane/alert/proto"
+	"google.golang.org/grpc"
 )
 
 // httpCheckRunner is running a single http check on every interval
 type httpCheckRunner struct {
+	failed   int
 	check    *check
 	ticker   *time.Ticker
 	db       repository
 	client   *http.Client
 	stopping chan bool
 	stopped  chan bool
+	alert    alert.AlertServiceClient
 }
 
 // newHTTPCheckRunner creates a new httpCheckRunner
-func newHTTPCheckRunner(interval time.Duration, c *check, db repository, client *http.Client) *httpCheckRunner {
+func newHTTPCheckRunner(interval time.Duration, c *check, db repository,
+	client *http.Client, alert alert.AlertServiceClient) *httpCheckRunner {
 	return &httpCheckRunner{
 		ticker:   time.NewTicker(interval),
 		db:       db,
@@ -27,6 +33,7 @@ func newHTTPCheckRunner(interval time.Duration, c *check, db repository, client 
 		stopping: make(chan bool, 1),
 		check:    c,
 		client:   client,
+		alert:    alert,
 	}
 }
 
@@ -76,10 +83,35 @@ func (cr *httpCheckRunner) run() {
 				log.Printf("Check Failure for check %v, %v", cr.check.ID, err)
 				break
 			}
+
 			err = cr.db.createResult(context.TODO(), r, cr.check.ID)
 			if err != nil {
 				log.Printf("Unable to write result of check %v, %v", cr.check.ID, err)
 				break
+			}
+
+			// Reset alert
+			if r.Success && cr.failed > 0 {
+				cr.failed = 0
+			}
+
+			// Increase error count
+			if !r.Success {
+				cr.failed++
+
+				// Trigger alert on 3 unsuccessful checks
+				if cr.failed == 3 {
+					cr.failed = 0
+					_, err := cr.alert.Firing(context.TODO(), &alert.Check{
+						Id:   cr.check.ID,
+						Type: "http",
+					})
+					if err != nil {
+						log.Printf("unable to trigger alert while checking check %v, %v",
+							cr.check.ID, err)
+						break
+					}
+				}
 			}
 		default:
 			time.Sleep(time.Millisecond)
@@ -100,10 +132,15 @@ type httpCheckManager struct {
 	db       repository
 	checks   map[uint64]*httpCheckRunner
 	client   *http.Client
+	alert    alert.AlertServiceClient
 }
 
 // newCheckHTTPCheckManager creates a new httpCheckManager
-func newCheckHTTPCheckManager(interval time.Duration, db repository) (*httpCheckManager, error) {
+func newCheckHTTPCheckManager(interval time.Duration, db repository, alertServer string) (*httpCheckManager, error) {
+	d, err := grpc.Dial(alertServer, grpc.WithInsecure())
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to alert server, %v", err)
+	}
 	cm := &httpCheckManager{
 		client: &http.Client{
 			Timeout: 5 * time.Second,
@@ -111,6 +148,7 @@ func newCheckHTTPCheckManager(interval time.Duration, db repository) (*httpCheck
 		interval: interval,
 		db:       db,
 		checks:   make(map[uint64]*httpCheckRunner),
+		alert:    alert.NewAlertServiceClient(d),
 	}
 
 	// Start all checks in the database
@@ -131,7 +169,8 @@ func newCheckHTTPCheckManager(interval time.Duration, db repository) (*httpCheck
 
 // starts a new check
 func (cm *httpCheckManager) start(c *check) error {
-	cm.checks[c.ID] = newHTTPCheckRunner(cm.interval, c, cm.db, cm.client)
+	cm.checks[c.ID] = newHTTPCheckRunner(
+		cm.interval, c, cm.db, cm.client, cm.alert)
 	cm.checks[c.ID].start()
 	log.Printf("HTTP Check %v started", c.ID)
 	return nil

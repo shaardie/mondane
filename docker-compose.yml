@@ -27,6 +27,14 @@ services:
     ports:
       - 127.0.0.1:8083:80
     restart: always
+  alert-service:
+    build:
+      context: .
+      dockerfile: ./docker/alert-service/Dockerfile
+    env_file: ./docker/alert-service/env
+    ports:
+      - 127.0.0.1:8084:80
+    restart: always
   sql-database:
     build: ./docker/sql-database/
     volumes:

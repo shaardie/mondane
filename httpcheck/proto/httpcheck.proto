@@ -1,6 +1,8 @@
 syntax = "proto3";
 import "google/protobuf/timestamp.proto";
 
+package mondane.httpcheck;
+
 option go_package = "httpcheck/proto";
 
 service HTTPCheckService {
@@ -31,7 +33,7 @@ message Result {
 }
 
 message Results {
-    repeated Result results = 1;
+    repeated Result results = 2;
 }
 
 message User {

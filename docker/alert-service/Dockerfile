@@ -4,9 +4,9 @@ WORKDIR /mondane
 RUN apk update && apk add --no-cache gcc musl-dev git make protoc protobuf-dev
 RUN go get github.com/golang/protobuf/protoc-gen-go
 COPY . .
-RUN make httpcheck-service
+RUN make alert-service
 
 FROM registry.hub.docker.com/library/alpine:latest
-COPY --from=builder /mondane/httpcheck-service /httpcheck-service
+COPY --from=builder /mondane/alert-service /alert-service
 EXPOSE 80
-CMD ["/httpcheck-service"]
+CMD ["/alert-service"]

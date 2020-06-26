@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+package mondane.user;
+
 option go_package = "user/proto";
 
 service UserService {

@@ -1,5 +1,6 @@
 syntax = "proto3";
 
+package mondane.mail;
 option go_package = "mail/proto";
 
 service MailService {

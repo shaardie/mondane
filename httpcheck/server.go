@@ -18,6 +18,7 @@ import (
 type config struct {
 	Database string `env:"MONDANE_HTTPCHECK_DATABASE,required"`
 	Listen   string `env:"MONDANE_HTTPCHECK_LISTEN,default=:8080"`
+	Alert    string `env:"MONDANE_ALERT_SERVER,required"`
 }
 
 // grpc server with all resources
@@ -37,17 +38,18 @@ func (s *server) init() {
 				log.Fatalf("Unable to connect to database, %v", err)
 			}
 			s.db = db
-			log.Printf("Connected to database %v", s.config.Database)
+			log.Printf("Connected to database")
 		}
 		// start check http manager
 		if s.m == nil {
-			m, err := newCheckHTTPCheckManager(30*time.Second, s.db)
+			m, err := newCheckHTTPCheckManager(30*time.Second, s.db, s.config.Alert)
 			if err != nil {
 				log.Fatalf("Unable to start HTTP Check Manager, %v", err)
 			}
 			s.m = m
 			log.Printf("HTTP Check Manager started")
 		}
+
 	})
 }
 

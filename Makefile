@@ -7,8 +7,11 @@ MAIL_CLIENT=mail-client
 HTTPCHECK_SERVICE=httpcheck-service
 HTTPCHECK_CLIENT=httpcheck-client
 
-SERVICES=$(USER_SERVICE) $(MAIL_SERVICE) $(HTTPCHECK_SERVICE)
-CLIENTS=$(USER_CLIENT) $(MAIL_CLIENT) $(HTTPCHECK_CLIENT)
+ALERT_SERVICE=alert-service
+ALERT_CLIENT=alert-client
+
+SERVICES=$(USER_SERVICE) $(MAIL_SERVICE) $(HTTPCHECK_SERVICE) $(ALERT_SERVICE)
+CLIENTS=$(USER_CLIENT) $(MAIL_CLIENT) $(HTTPCHECK_CLIENT) $(ALERT_CLIENT)
 
 
 
@@ -46,11 +49,21 @@ $(HTTPCHECK_SERVICE): httpcheck/proto/httpcheck.pb.go
 $(HTTPCHECK_CLIENT): httpcheck/proto/httpcheck.pb.go
 	go build -o $(HTTPCHECK_CLIENT) cmd/$(HTTPCHECK_CLIENT)/main.go
 
+alert/proto/alert.pb.go: alert/proto/alert.proto mail/proto/mail.pb.go user/proto/user.pb.go
+	protoc --proto_path=. --go_out=plugins=grpc:. --go_opt=paths=source_relative alert/proto/alert.proto
+
+$(ALERT_SERVICE): alert/proto/alert.pb.go
+	go build -o $(ALERT_SERVICE) cmd/$(ALERT_SERVICE)/main.go
+
+$(ALERT_CLIENT): alert/proto/alert.pb.go
+	go build -o $(ALERT_CLIENT) cmd/$(ALERT_CLIENT)/main.go
+
 clean:
 	go clean
 	rm -rf $(SERVICES) $(CLIENTS)\
 		user/proto/user.pb.go \
 		mail/proto/mail.pb.go \
+		alert/proto/alert.pb.go \
 		httpcheck/proto/httpcheck.pb.go
 
 .PHONY: all build $(SERVICES) $(CLIENTS)
