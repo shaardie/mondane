@@ -43,7 +43,7 @@ $(MAIL_CLIENT): mail/proto/mail.pb.go
 httpcheck/proto/httpcheck.pb.go: httpcheck/proto/httpcheck.proto
 	protoc --proto_path=. --go_out=plugins=grpc:. --go_opt=paths=source_relative httpcheck/proto/httpcheck.proto
 
-$(HTTPCHECK_SERVICE): httpcheck/proto/httpcheck.pb.go
+$(HTTPCHECK_SERVICE): httpcheck/proto/httpcheck.pb.go alert/proto/alert.pb.go
 	go build -o $(HTTPCHECK_SERVICE) cmd/$(HTTPCHECK_SERVICE)/main.go
 
 $(HTTPCHECK_CLIENT): httpcheck/proto/httpcheck.pb.go
