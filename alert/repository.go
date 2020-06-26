@@ -160,6 +160,6 @@ func (s *sqlRepository) Delete(ctx context.Context, id uint64) error {
 }
 
 func (s *sqlRepository) UpdateLastSend(ctx context.Context, id uint64) error {
-	_, err := s.db.ExecContext(ctx, "UPDATE alerts set last_send = ? WHERE id = ?", time.Now())
+	_, err := s.db.ExecContext(ctx, "UPDATE alerts set last_send = ? WHERE id = ?", time.Now(), id)
 	return err
 }
