@@ -2,7 +2,7 @@
 package main
 
 import (
-	"log"
+	"os"
 
 	"github.com/shaardie/mondane/alert"
 )
@@ -14,6 +14,6 @@ func mainWithError() error {
 
 func main() {
 	if err := mainWithError(); err != nil {
-		log.Fatalln(err)
+		os.Exit(1)
 	}
 }

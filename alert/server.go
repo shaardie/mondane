@@ -8,7 +8,12 @@ import (
 	"sync"
 	"time"
 
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
+	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
+
 	"github.com/joeshaw/envdecode"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
 	"github.com/shaardie/mondane/alert/proto"
@@ -31,32 +36,36 @@ type server struct {
 	initOnce sync.Once
 	mail     mail.MailServiceClient
 	user     user.UserServiceClient
+	logger   *zap.SugaredLogger
 }
 
 // init the server resources, just once
 func (s *server) init() {
 	s.initOnce.Do(func() {
+		s.logger.Info("Initialize resources")
 		// Connect to database
 		if s.db == nil {
 			db, err := newSQLRepository("mysql", s.config.Database)
 			if err != nil {
-				log.Fatalf("Unable to connect to database, %v", err)
+				s.logger.Fatalw("Unable to connect to database", "error", err)
 			}
 			s.db = db
-			log.Println("Connected to database")
+			s.logger.Info("Connected to database.")
 		}
 
 		d, err := grpc.Dial(s.config.Mail, grpc.WithInsecure())
 		if err != nil {
-			log.Fatalf("unable to connect to mail server, %v", err)
+			s.logger.Fatalw("Unable to connect to mail server", "error", err)
 		}
 		s.mail = mail.NewMailServiceClient(d)
+		s.logger.Info("Connected to mail service")
 
 		d, err = grpc.Dial(s.config.User, grpc.WithInsecure())
 		if err != nil {
-			log.Fatalf("unable to connect to user server, %v", err)
+			s.logger.Fatalf("Unable to connect to user server", "error", err)
 		}
 		s.user = user.NewUserServiceClient(d)
+		s.logger.Info("Connected to user service")
 	})
 }
 
@@ -106,29 +115,41 @@ func (s *server) Firing(ctx context.Context, check *proto.Check) (*proto.Respons
 	// Get all alerts matching the check
 	alerts, err := s.db.GetByCheck(ctx, check.Id, check.Type)
 	if err != nil {
+		s.logger.Warnw("Unable to get alert",
+			"check_id", check.Id,
+			"check_type", check.Type)
 		return nil, err
+	}
+
+	if len(*alerts) == 0 {
+		s.logger.Infow("No alerts found",
+			"check_id", check.Id,
+			"check_type", check.Type)
 	}
 
 	// Fire for all found alerts
 	for _, alert := range *alerts {
 		// Check if mail should be send
 		if !alert.SendMail {
-			log.Printf("Do not fire alert %v, since email sending is disabled", alert.ID)
+			s.logger.Infow("Do not fire alert, since email sending is disabled",
+				"alert", alert)
 			continue
 		}
 
 		// Check if alert was already been fired during send period
 		if alert.LastSend.Add(alert.SendPeriod).After(time.Now()) {
-			log.Printf("Do not fire alert %v, since send period is not over yet", alert.ID)
+			s.logger.Infow("Do not fire alert, since send period is not over yet",
+				"alert", alert)
 			continue
 		}
 
 		// Alert should be fired
-		log.Printf("Attempt to fire alert %v", alert.ID)
+		s.logger.Infow("Attempt to fire alert", "alert", alert)
 
 		// Get user
 		u, err := s.user.Get(ctx, &user.User{Id: alert.UserID})
 		if err != nil {
+			s.logger.Infow("Unable to get user from user service", "error", err)
 			return nil, err
 		}
 
@@ -139,12 +160,14 @@ func (s *server) Firing(ctx context.Context, check *proto.Check) (*proto.Respons
 			Message:   fmt.Sprintf("Check of type %v with id %v failed", check.Type, check.Id),
 		})
 		if err != nil {
+			s.logger.Infow("Unable to send email with email service", "error", err)
 			return nil, err
 		}
 
 		// Update last send
 		err = s.db.UpdateLastSend(ctx, alert.ID)
 		if err != nil {
+			s.logger.Infow("Unable to update alert", "error", err, "alert", alert)
 			return nil, err
 		}
 	}
@@ -153,31 +176,51 @@ func (s *server) Firing(ctx context.Context, check *proto.Check) (*proto.Respons
 
 // Run the mail server
 func Run() error {
+	baseLogger, err := zap.NewProduction()
+	if err != nil {
+		log.Printf("Unable to initialize logger, %v", err)
+		return err
+	}
+	logger := baseLogger.Sugar()
+	logger.Info("Initialized logger")
+
 	// Get Config
 	var c config
 	if err := envdecode.StrictDecode(&c); err != nil {
-		return fmt.Errorf("unable to read config, %v", err)
+		logger.Errorw("Unable to read config", "error", err)
+		return err
 	}
 
 	// TCP Listener
 	l, err := net.Listen("tcp", c.Listen)
 	if err != nil {
+		logger.Errorw("Unable to open tcp connection for grpc server", "error", err)
 		return err
 	}
 
 	// Create server
-	s := &server{config: &c}
+	s := &server{
+		config: &c,
+		logger: logger,
+	}
 
+	// Make sure that log statements internal to gRPC library are logged using the zapLogger as well.
+	grpc_zap.ReplaceGrpcLoggerV2(baseLogger)
+	// Create a server, make sure we put the grpc_ctxtags context before everything else.
+	grpcServer := grpc.NewServer(
+		grpc_middleware.WithUnaryServerChain(
+			grpc_ctxtags.UnaryServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
+			grpc_zap.UnaryServerInterceptor(baseLogger),
+			s.initInterceptor,
+		))
 	// GRPC Server with init interceptor
-	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(s.initInterceptor))
+	// grpcServer := grpc.NewServer(grpc.UnaryInterceptor(s.initInterceptor))
 	proto.RegisterAlertServiceServer(grpcServer, s)
 
-	// Init to start internal services
-	go func() {
-		time.Sleep(10 * time.Second)
-		s.init()
-	}()
-
 	// Serve
-	return grpcServer.Serve(l)
+	if err := grpcServer.Serve(l); err != nil {
+		logger.Errorw("Error while serving grpc server", "error", err)
+		return err
+	}
+	return nil
 }

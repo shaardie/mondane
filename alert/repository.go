@@ -29,7 +29,7 @@ type alert struct {
 func unmarshalAlert(a *alert) (*proto.Alert, error) {
 	lastSend, err := ptypes.TimestampProto(a.LastSend)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal error, %v", err)
+		return nil, fmt.Errorf("unmarshal error, %w", err)
 	}
 	return &proto.Alert{
 		Id:         a.ID,
@@ -67,14 +67,14 @@ func marshalAlert(pa *proto.Alert) (*alert, error) {
 	if pa.LastSend != nil {
 		lastSend, err := ptypes.Timestamp(pa.LastSend)
 		if err != nil {
-			return nil, fmt.Errorf("marshal error, %v", err)
+			return nil, fmt.Errorf("marshal error, %w", err)
 		}
 		a.LastSend = lastSend
 	}
 
 	sendPeriod, err := ptypes.Duration(pa.SendPeriod)
 	if err != nil {
-		return nil, fmt.Errorf("marshal error, %v", err)
+		return nil, fmt.Errorf("marshal error, %w", err)
 	}
 	a.SendPeriod = sendPeriod
 
@@ -108,7 +108,7 @@ func newSQLRepository(dialect string, database string) (*sqlRepository, error) {
 	// Connect to database
 	db, err := sqlx.Connect(dialect, database)
 	if err != nil {
-		return res, err
+		return res, fmt.Errorf("unable to connect to %v database, %w", dialect, err)
 	}
 	res.db = db
 	return res, nil
