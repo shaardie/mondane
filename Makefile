@@ -59,7 +59,7 @@ $(ALERT_SERVICE): alert/proto/alert.pb.go
 $(ALERT_CLIENT): alert/proto/alert.pb.go
 	go build -o $(ALERT_CLIENT) cmd/$(ALERT_CLIENT)/main.go
 
-checkmanager/proto/checkmanager.pb.go: checkmanager/proto/checkmanager.proto 
+checkmanager/proto/checkmanager.pb.go: checkmanager/proto/checkmanager.proto
 	protoc --proto_path=. --go_out=plugins=grpc:. --go_opt=paths=source_relative checkmanager/proto/checkmanager.proto
 
 $(CHECKMANAGER_SERVICE): checkmanager/proto/checkmanager.pb.go

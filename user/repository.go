@@ -98,7 +98,7 @@ func (s *sqlRepository) new(ctx context.Context, u *user) (string, error) {
 
 	// Insert new user
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO users 
+		`INSERT INTO users
 			(email, firstname, surname, password, activated, activation_token)
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		u.Email, u.Firstname, u.Surname, u.Password, false, token)

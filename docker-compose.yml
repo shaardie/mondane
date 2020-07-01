@@ -44,7 +44,7 @@ services:
       - 127.0.0.1:8084:8084
     restart: always
   sql-database:
-    
+
     build:
       context: .
       dockerfile: ./docker/sql-database/Dockerfile
