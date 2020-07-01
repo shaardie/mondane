@@ -7,13 +7,14 @@ MAIL_CLIENT=mail-client
 HTTPCHECK_SERVICE=httpcheck-service
 HTTPCHECK_CLIENT=httpcheck-client
 
+CHECKMANAGER_SERVICE=checkmanager-service
+CHECKMANAGER_CLIENT=checkmanager-client
+
 ALERT_SERVICE=alert-service
 ALERT_CLIENT=alert-client
 
-SERVICES=$(USER_SERVICE) $(MAIL_SERVICE) $(HTTPCHECK_SERVICE) $(ALERT_SERVICE)
-CLIENTS=$(USER_CLIENT) $(MAIL_CLIENT) $(HTTPCHECK_CLIENT) $(ALERT_CLIENT)
-
-
+SERVICES=$(USER_SERVICE) $(MAIL_SERVICE) $(HTTPCHECK_SERVICE) $(ALERT_SERVICE) $(CHECKMANAGER_SERVICE)
+CLIENTS=$(USER_CLIENT) $(MAIL_CLIENT) $(HTTPCHECK_CLIENT) $(ALERT_CLIENT) $(CHECKMANAGER_CLIENT)
 
 # Default target.
 # Build
@@ -43,7 +44,7 @@ $(MAIL_CLIENT): mail/proto/mail.pb.go
 httpcheck/proto/httpcheck.pb.go: httpcheck/proto/httpcheck.proto
 	protoc --proto_path=. --go_out=plugins=grpc:. --go_opt=paths=source_relative httpcheck/proto/httpcheck.proto
 
-$(HTTPCHECK_SERVICE): httpcheck/proto/httpcheck.pb.go alert/proto/alert.pb.go
+$(HTTPCHECK_SERVICE): httpcheck/proto/httpcheck.pb.go
 	go build -o $(HTTPCHECK_SERVICE) cmd/$(HTTPCHECK_SERVICE)/main.go
 
 $(HTTPCHECK_CLIENT): httpcheck/proto/httpcheck.pb.go
@@ -58,12 +59,22 @@ $(ALERT_SERVICE): alert/proto/alert.pb.go
 $(ALERT_CLIENT): alert/proto/alert.pb.go
 	go build -o $(ALERT_CLIENT) cmd/$(ALERT_CLIENT)/main.go
 
+checkmanager/proto/checkmanager.pb.go: checkmanager/proto/checkmanager.proto 
+	protoc --proto_path=. --go_out=plugins=grpc:. --go_opt=paths=source_relative checkmanager/proto/checkmanager.proto
+
+$(CHECKMANAGER_SERVICE): checkmanager/proto/checkmanager.pb.go
+	go build -o $(CHECKMANAGER_SERVICE) cmd/$(CHECKMANAGER_SERVICE)/main.go
+
+$(CHECKMANAGER_CLIENT): checkmanager/proto/checkmanager.pb.go
+	go build -o $(CHECKMANAGER_CLIENT) cmd/$(CHECKMANAGER_CLIENT)/main.go
+
 clean:
 	go clean
-	rm -rf $(SERVICES) $(CLIENTS)\
+	rm -rf $(SERVICES) $(CLIENTS) \
 		user/proto/user.pb.go \
 		mail/proto/mail.pb.go \
 		alert/proto/alert.pb.go \
-		httpcheck/proto/httpcheck.pb.go
+		httpcheck/proto/httpcheck.pb.go \
+		checkmanager/proto/checkmanager.pb.go
 
 .PHONY: all build $(SERVICES) $(CLIENTS)

@@ -25,6 +25,14 @@ services:
       dockerfile: ./docker/httpcheck-service/Dockerfile
     env_file: ./docker/httpcheck-service/env
     ports:
+      - 127.0.0.1:8085:8085
+    restart: always
+  checkmanager-service:
+    build:
+      context: .
+      dockerfile: ./docker/checkmanager-service/Dockerfile
+    env_file: ./docker/checkmanager-service/env
+    ports:
       - 127.0.0.1:8083:8083
     restart: always
   alert-service:
@@ -36,7 +44,10 @@ services:
       - 127.0.0.1:8084:8084
     restart: always
   sql-database:
-    build: ./docker/sql-database/
+    
+    build:
+      context: .
+      dockerfile: ./docker/sql-database/Dockerfile
     volumes:
       - sql-database:/var/lib/mysql/
     ports:

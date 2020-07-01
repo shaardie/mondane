@@ -16,9 +16,9 @@ import (
 
 // alert represents a alert from the database
 type alert struct {
-	ID         uint64        `db:"id"`
-	UserID     uint64        `db:"user_id"`
-	CheckID    uint64        `db:"check_id"`
+	ID         int64         `db:"id"`
+	UserID     int64         `db:"user_id"`
+	CheckID    int64         `db:"check_id"`
 	CheckType  string        `db:"check_type"`
 	SendMail   bool          `db:"send_mail"`
 	LastSend   time.Time     `db:"last_send"`
@@ -84,17 +84,17 @@ func marshalAlert(pa *proto.Alert) (*alert, error) {
 // repository is the interface to the database
 type repository interface {
 	// Get an alert from its id
-	Get(context.Context, uint64) (*alert, error)
+	Get(context.Context, int64) (*alert, error)
 	// Get all alerts from a user id
-	GetByUser(context.Context, uint64) (*[]alert, error)
+	GetByUser(context.Context, int64) (*[]alert, error)
 	// Get all alerts from a check by id and type
-	GetByCheck(context.Context, uint64, string) (*[]alert, error)
+	GetByCheck(context.Context, int64, string) (*[]alert, error)
 	// Create a new alert
 	Create(context.Context, *alert) error
 	// Delete a alert by id
-	Delete(context.Context, uint64) error
+	Delete(context.Context, int64) error
 	// Update last send from alert wit id
-	UpdateLastSend(context.Context, uint64) error
+	UpdateLastSend(context.Context, int64) error
 }
 
 // sqlRepository fullfills the repository interface
@@ -114,7 +114,7 @@ func newSQLRepository(dialect string, database string) (*sqlRepository, error) {
 	return res, nil
 }
 
-func (s *sqlRepository) Get(ctx context.Context, id uint64) (*alert, error) {
+func (s *sqlRepository) Get(ctx context.Context, id int64) (*alert, error) {
 	alert := &alert{}
 	err := s.db.GetContext(ctx, alert,
 		`SELECT id, user_id, check_id, check_type, send_mail,last_send,
@@ -124,7 +124,7 @@ func (s *sqlRepository) Get(ctx context.Context, id uint64) (*alert, error) {
 	return alert, err
 }
 
-func (s *sqlRepository) GetByUser(ctx context.Context, userID uint64) (*[]alert, error) {
+func (s *sqlRepository) GetByUser(ctx context.Context, userID int64) (*[]alert, error) {
 	as := &[]alert{}
 	err := s.db.SelectContext(ctx, as,
 		`SELECT id, user_id, check_id, check_type, send_mail,last_send,
@@ -134,7 +134,7 @@ func (s *sqlRepository) GetByUser(ctx context.Context, userID uint64) (*[]alert,
 	return as, err
 }
 
-func (s *sqlRepository) GetByCheck(ctx context.Context, checkID uint64, checkType string) (*[]alert, error) {
+func (s *sqlRepository) GetByCheck(ctx context.Context, checkID int64, checkType string) (*[]alert, error) {
 	as := &[]alert{}
 	err := s.db.SelectContext(ctx, as,
 		`SELECT id, user_id, check_id, check_type, send_mail,last_send,
@@ -154,12 +154,12 @@ func (s *sqlRepository) Create(ctx context.Context, a *alert) error {
 	return err
 }
 
-func (s *sqlRepository) Delete(ctx context.Context, id uint64) error {
+func (s *sqlRepository) Delete(ctx context.Context, id int64) error {
 	_, err := s.db.ExecContext(ctx, "DELETE FROM alerts WHERE id = ?", id)
 	return err
 }
 
-func (s *sqlRepository) UpdateLastSend(ctx context.Context, id uint64) error {
+func (s *sqlRepository) UpdateLastSend(ctx context.Context, id int64) error {
 	_, err := s.db.ExecContext(ctx, "UPDATE alerts set last_send = ? WHERE id = ?", time.Now(), id)
 	return err
 }

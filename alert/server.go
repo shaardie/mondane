@@ -174,7 +174,7 @@ func (s *server) Firing(ctx context.Context, check *proto.Check) (*proto.Respons
 	return &proto.Response{}, nil
 }
 
-// Run the mail server
+// Run the server
 func Run() error {
 	baseLogger, err := zap.NewProduction()
 	if err != nil {
@@ -214,7 +214,6 @@ func Run() error {
 			s.initInterceptor,
 		))
 	// GRPC Server with init interceptor
-	// grpcServer := grpc.NewServer(grpc.UnaryInterceptor(s.initInterceptor))
 	proto.RegisterAlertServiceServer(grpcServer, s)
 
 	// Serve

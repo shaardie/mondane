@@ -16,7 +16,7 @@ import (
 
 // user represent a user from the database
 type user struct {
-	ID              uint64 `db:"id"`
+	ID              int64  `db:"id"`
 	Email           string `db:"email"`
 	Firstname       string `db:"firstname"`
 	Surname         string `db:"surname"`
@@ -28,7 +28,7 @@ type user struct {
 // repository interface
 type repository interface {
 	// get a user by id
-	get(ctx context.Context, id uint64) (*user, error)
+	get(ctx context.Context, id int64) (*user, error)
 	// get a user by mail
 	getByMail(ctx context.Context, email string) (*user, error)
 	// activate a user by token
@@ -57,7 +57,7 @@ func newSQLRepository(dialect string, database string) (*sqlRepository, error) {
 }
 
 // get a user by id
-func (s *sqlRepository) get(ctx context.Context, id uint64) (*user, error) {
+func (s *sqlRepository) get(ctx context.Context, id int64) (*user, error) {
 	u := &user{}
 	err := s.db.GetContext(ctx, u, "select * from users where id = ?", id)
 	return u, err

@@ -11,3 +11,5 @@ coverage.out
 /httpcheck-client
 /alert-service
 /alert-client
+/checkmanager-service
+/checkmanager-client

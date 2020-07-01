@@ -28,11 +28,11 @@ var (
 	activateToken = activate.Arg("token", "Activation token").Required().String()
 
 	get      = kingpin.Command("get", "get a user.")
-	getID    = get.Flag("id", "id of user").Uint64()
+	getID    = get.Flag("id", "id of user").Int64()
 	getEmail = get.Flag("email", "email of user").String()
 
 	update          = kingpin.Command("update", "update a user.")
-	updateID        = update.Flag("id", "id of user").Uint64()
+	updateID        = update.Flag("id", "id of user").Int64()
 	updateEmail     = update.Flag("email", "email of user").String()
 	updateFirstname = update.Flag("firstname", "firstname of user").String()
 	updateSurname   = update.Flag("surname", "firstname of user").String()

@@ -18,14 +18,14 @@ var (
 	server = kingpin.Flag("server", "server address").Default("127.0.0.1:8084").String()
 
 	create           = kingpin.Command("create", "create an alert")
-	createUserID     = create.Arg("user-id", "user id of the alert").Required().Uint64()
-	createCheckID    = create.Arg("check-id", "check id of the alert").Required().Uint64()
+	createUserID     = create.Arg("user-id", "user id of the alert").Required().Int64()
+	createCheckID    = create.Arg("check-id", "check id of the alert").Required().Int64()
 	createCheckType  = create.Arg("check-type", "type of the alert").Required().String()
 	createSendMail   = create.Arg("send-mail", "if mail is sent").Required().Bool()
-	createSendPeriod = create.Arg("send-period", "period in second between sends").Required().Uint()
+	createSendPeriod = create.Arg("send-period", "period in second between sends").Required().Int64()
 
 	firing     = kingpin.Command("firing", "firing an alert")
-	firingID   = firing.Arg("id", "id of the check to fire").Required().Uint64()
+	firingID   = firing.Arg("id", "id of the check to fire").Required().Int64()
 	firingType = firing.Arg("type", "type of the check to fire").Required().String()
 )
 

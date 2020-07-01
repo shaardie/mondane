@@ -13,6 +13,8 @@ require (
 	github.com/joeshaw/envdecode v0.0.0-20200121155833-099f1fc765bd
 	go.uber.org/zap v1.15.0
 	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
+	golang.org/x/sys v0.0.0-20190531175056-4c3a928424d2 // indirect
+	golang.org/x/text v0.3.2 // indirect
 	google.golang.org/grpc v1.29.1
 	google.golang.org/protobuf v1.24.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6

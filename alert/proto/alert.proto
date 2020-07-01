@@ -17,11 +17,11 @@ service AlertService {
 }
 
 message Id {
-    uint64 id = 1;
+    int64 id = 1;
 }
 
 message Check {
-    uint64 id = 1;
+    int64 id = 1;
     string type = 2;
 }
 
@@ -30,9 +30,9 @@ message Alerts {
 }
 
 message Alert {
-    uint64 id = 1;
-    uint64 user_id = 2;
-    uint64 check_id = 3;
+    int64 id = 1;
+    int64 user_id = 2;
+    int64 check_id = 3;
     string check_type = 4;
     bool send_mail = 5;
     google.protobuf.Timestamp last_send = 6;
