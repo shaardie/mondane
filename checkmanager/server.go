@@ -23,8 +23,8 @@ import (
 type config struct {
 	Database  string `env:"MONDANE_CHECKMANAGER_DATABASE,required"`
 	Listen    string `env:"MONDANE_CHECKMANAGER_LISTEN,default=:8083"`
-	Alert     string `env:"MONDANE_ALERT_SERVER,required"`
-	HTTPCheck string `env:"MONDANE_HTTPCHECK_SERVER,required"`
+	Alert     string `env:"MONDANE_CHECKMANAGER_ALERT_SERVER,required"`
+	HTTPCheck string `env:"MONDANE_CHECKMANAGER_HTTPCHECK_SERVER,required"`
 }
 
 // grpc server with all resources

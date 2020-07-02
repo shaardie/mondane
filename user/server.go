@@ -13,6 +13,8 @@ import (
 	"github.com/joeshaw/envdecode"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/shaardie/mondane/user/proto"
 )
@@ -71,9 +73,8 @@ func (s *server) Get(ctx context.Context, req *proto.User) (*proto.User, error) 
 
 // AcActivate a user with its activation token
 func (s *server) Activate(ctx context.Context, req *proto.ActivationToken) (*proto.Response, error) {
-	res := &proto.Response{}
 	err := s.db.activate(ctx, req.Token)
-	return res, err
+	return &proto.Response{}, err
 }
 
 // Get a user by mail from the service
@@ -90,15 +91,13 @@ func (s *server) GetByEmail(ctx context.Context, req *proto.User) (*proto.User, 
 
 // New user is created
 func (s *server) New(ctx context.Context, req *proto.User) (*proto.ActivationToken, error) {
-	res := &proto.ActivationToken{}
-
 	// Create new user in database
 	token, err := s.db.new(ctx, marshalUser(req))
 	if err != nil {
-		return res, err
+		return nil, status.Errorf(
+			codes.AlreadyExists, "database error, %w", err)
 	}
-	res.Token = token
-	return res, nil
+	return &proto.ActivationToken{Token: token}, nil
 }
 
 // Update updates an existing user
@@ -115,30 +114,37 @@ func (s *server) Update(ctx context.Context, req *proto.User) (*proto.User, erro
 
 // Auth authenticats a user an returns a JWT
 func (s *server) Auth(ctx context.Context, req *proto.User) (*proto.Token, error) {
-	res := &proto.Token{}
-
 	// Get user by mail
 	user, err := s.db.getByMail(ctx, req.Email)
 	if err != nil {
-		return res, err
+		return nil, status.Errorf(
+			codes.NotFound, "database error %w", err)
 	}
 
 	// Check if user is activated
 	if !user.Activated {
-		return res, fmt.Errorf("user %v not activated", user.ID)
+		return nil, status.Errorf(
+			codes.PermissionDenied,
+			"user %v not activated", user.ID,
+		)
 	}
 
 	// Compare password
-	if err := bcrypt.CompareHashAndPassword(user.Password, req.Password); err != nil {
-		return res, err
+	if err := bcrypt.CompareHashAndPassword(
+		user.Password, req.Password); err != nil {
+		return nil, status.Errorf(
+			codes.PermissionDenied,
+			"password wrong, %w", err)
 	}
 
 	// Generate JWT
 	token, err := s.tokenService.encode(unmarshalUser(user))
-	if err == nil {
-		res.Token = token
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Unknown, "unable to generate token, %w", err,
+		)
 	}
-	return res, err
+	return &proto.Token{Token: token}, err
 }
 
 // Validates the JWT and returns the decoded user

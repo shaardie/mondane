@@ -13,7 +13,9 @@ CHECKMANAGER_CLIENT=checkmanager-client
 ALERT_SERVICE=alert-service
 ALERT_CLIENT=alert-client
 
-SERVICES=$(USER_SERVICE) $(MAIL_SERVICE) $(HTTPCHECK_SERVICE) $(ALERT_SERVICE) $(CHECKMANAGER_SERVICE)
+API_SERVICE=api-service
+
+SERVICES=$(USER_SERVICE) $(MAIL_SERVICE) $(HTTPCHECK_SERVICE) $(ALERT_SERVICE) $(CHECKMANAGER_SERVICE) $(API_SERVICE)
 CLIENTS=$(USER_CLIENT) $(MAIL_CLIENT) $(HTTPCHECK_CLIENT) $(ALERT_CLIENT) $(CHECKMANAGER_CLIENT)
 
 # Default target.
@@ -67,6 +69,9 @@ $(CHECKMANAGER_SERVICE): checkmanager/proto/checkmanager.pb.go
 
 $(CHECKMANAGER_CLIENT): checkmanager/proto/checkmanager.pb.go
 	go build -o $(CHECKMANAGER_CLIENT) cmd/$(CHECKMANAGER_CLIENT)/main.go
+
+$(API_SERVICE): user/proto/user.pb.go mail/proto/mail.pb.go alert/proto/alert.pb.go checkmanager/proto/checkmanager.pb.go
+	go build -o $(API_SERVICE) cmd/$(API_SERVICE)/main.go
 
 clean:
 	go clean
