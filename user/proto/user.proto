@@ -12,6 +12,7 @@ service UserService {
     rpc Update(User) returns (User) {}
     rpc Auth(User) returns (Token) {}
     rpc ValidateToken(Token) returns (ValidatedToken) {}
+    rpc Delete(User) returns (Response) {}
 }
 
 message User {
@@ -19,7 +20,7 @@ message User {
     string email = 2;
     string firstname = 3;
     string surname = 4;
-    bytes Password = 5;
+    string Password = 5;
 }
 
 message Token {

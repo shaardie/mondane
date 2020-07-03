@@ -37,6 +37,8 @@ type repository interface {
 	new(ctx context.Context, u *user) (string, error)
 	// update an existing user
 	update(ctx context.Context, u *user) (*user, error)
+	// DeleteUser an existing user
+	DeleteUser(ctx context.Context, id int64) error
 }
 
 // sqlRepository fullfills the repository interface
@@ -79,7 +81,7 @@ func (s *sqlRepository) activate(ctx context.Context, token string) error {
 // new registers a new user
 func (s *sqlRepository) new(ctx context.Context, u *user) (string, error) {
 	// Check for mandatory keys
-	if u.Email == "" || u.Password == nil {
+	if u.Email == "" || u.Password == nil || len(u.Password) == 0 {
 		return "", errors.New("mandatory keys email and password")
 	}
 
@@ -110,7 +112,7 @@ func (s *sqlRepository) update(ctx context.Context, u *user) (*user, error) {
 	// Get user
 	user, err := s.get(ctx, u.ID)
 	if err != nil {
-		return user, err
+		return nil, err
 	}
 
 	// Update user
@@ -124,14 +126,28 @@ func (s *sqlRepository) update(ctx context.Context, u *user) (*user, error) {
 		user.Surname = u.Surname
 	}
 	if u.Password != nil {
-		user.Password = u.Password
+		// Generate hash from password
+		password, err := bcrypt.GenerateFromPassword(u.Password, bcrypt.DefaultCost)
+		if err != nil {
+			return nil, err
+		}
+		user.Password = password
 	}
 
 	// Update user in database
 	_, err = s.db.ExecContext(ctx,
 		"update users set email = ?, firstname = ?, surname = ?, password = ? WHERE id = ?",
-		u.Email, u.Firstname, u.Surname, u.Password, u.ID)
+		user.Email, user.Firstname, user.Surname, user.Password, user.ID)
 	return user, err
+}
+
+// DeleteUser deletes a user by id.
+func (s *sqlRepository) DeleteUser(ctx context.Context, id int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM users
+		WHERE id = ?`,
+		id)
+	return err
 }
 
 // marshalUser is a helper function to create a database user from a grpc user
@@ -141,7 +157,7 @@ func marshalUser(u *proto.User) *user {
 		Email:     u.Email,
 		Firstname: u.Firstname,
 		Surname:   u.Surname,
-		Password:  u.Password,
+		Password:  []byte(u.Password),
 	}
 }
 
@@ -152,6 +168,5 @@ func unmarshalUser(u *user) *proto.User {
 		Email:     u.Email,
 		Firstname: u.Firstname,
 		Surname:   u.Surname,
-		Password:  u.Password,
 	}
 }

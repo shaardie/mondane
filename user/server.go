@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -95,21 +94,31 @@ func (s *server) New(ctx context.Context, req *proto.User) (*proto.ActivationTok
 	token, err := s.db.new(ctx, marshalUser(req))
 	if err != nil {
 		return nil, status.Errorf(
-			codes.AlreadyExists, "database error, %w", err)
+			codes.InvalidArgument, "database error, %w", err)
 	}
 	return &proto.ActivationToken{Token: token}, nil
 }
 
 // Update updates an existing user
 func (s *server) Update(ctx context.Context, req *proto.User) (*proto.User, error) {
-	res := &proto.User{}
-
 	// Update user in database
 	user, err := s.db.update(ctx, marshalUser(req))
-	if err == nil {
-		res = unmarshalUser(user)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.InvalidArgument, "database error, %w", err)
 	}
-	return res, err
+	return unmarshalUser(user), nil
+}
+
+// Delete a user by id
+func (s *server) Delete(ctx context.Context, req *proto.User) (*proto.Response, error) {
+	err := s.db.DeleteUser(ctx, req.Id)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.InvalidArgument, "database error, %w", err,
+		)
+	}
+	return &proto.Response{}, nil
 }
 
 // Auth authenticats a user an returns a JWT
@@ -131,7 +140,7 @@ func (s *server) Auth(ctx context.Context, req *proto.User) (*proto.Token, error
 
 	// Compare password
 	if err := bcrypt.CompareHashAndPassword(
-		user.Password, req.Password); err != nil {
+		user.Password, []byte(req.Password)); err != nil {
 		return nil, status.Errorf(
 			codes.PermissionDenied,
 			"password wrong, %w", err)
@@ -149,21 +158,25 @@ func (s *server) Auth(ctx context.Context, req *proto.User) (*proto.Token, error
 
 // Validates the JWT and returns the decoded user
 func (s *server) ValidateToken(ctx context.Context, req *proto.Token) (*proto.ValidatedToken, error) {
-	res := &proto.ValidatedToken{}
 	// decode JWT
 	claims, err := s.tokenService.decode(req.Token)
 	if err != nil {
-		return res, err
+		return nil, status.Errorf(
+			codes.InvalidArgument,
+			"unable to get token", err)
 	}
 
 	// Check if id is valid
 	if claims.User.Id == 0 {
-		return res, errors.New("invalid user")
+		return nil, status.Error(
+			codes.InvalidArgument,
+			"invalid user")
 	}
 
-	res.Valid = true
-	res.User = claims.User
-	return res, nil
+	return &proto.ValidatedToken{
+		User:  claims.User,
+		Valid: true,
+	}, nil
 }
 
 // Run the mail server

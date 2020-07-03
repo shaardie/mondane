@@ -17,7 +17,7 @@ import (
 	alert "github.com/shaardie/mondane/alert/proto"
 	checkmanager "github.com/shaardie/mondane/checkmanager/proto"
 	mail "github.com/shaardie/mondane/mail/proto"
-	user "github.com/shaardie/mondane/user/proto"
+	userService "github.com/shaardie/mondane/user/proto"
 )
 
 const (
@@ -50,7 +50,7 @@ type server struct {
 	config       *config
 	logger       *zap.SugaredLogger
 	initOnce     sync.Once
-	user         user.UserServiceClient
+	user         userService.UserServiceClient
 	mail         mail.MailServiceClient
 	checkmanager checkmanager.CheckManagerServiceClient
 	alert        alert.AlertServiceClient
@@ -83,7 +83,7 @@ func (s *server) initHandler(h http.Handler) http.Handler {
 					s.srv.Close()
 					return
 				}
-				s.user = user.NewUserServiceClient(d)
+				s.user = userService.NewUserServiceClient(d)
 				s.logger.Info("Connected to user server")
 			}
 

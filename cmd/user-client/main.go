@@ -87,7 +87,7 @@ func mainWithError() error {
 			Email:     *registerEmail,
 			Firstname: *registerFirstname,
 			Surname:   *registerSurname,
-			Password:  []byte(*registerPassword),
+			Password:  *registerPassword,
 		})
 		if err != nil {
 			return fmt.Errorf("Unable to register user %v", err)
@@ -125,7 +125,7 @@ func mainWithError() error {
 			Email:     *updateEmail,
 			Firstname: *updateFirstname,
 			Surname:   *updateSurname,
-			Password:  []byte(*registerPassword),
+			Password:  *registerPassword,
 		})
 		if err != nil {
 			return fmt.Errorf("unable to update user %v, %v", *updateEmail, err)
@@ -134,7 +134,7 @@ func mainWithError() error {
 	case "auth":
 		token, err := c.Auth(ctx, &proto.User{
 			Email:    *authEmail,
-			Password: []byte(*authPassword)})
+			Password: *authPassword})
 		if err != nil {
 			return fmt.Errorf("unable to authenticate user %v, %v", *authEmail, err)
 		}
