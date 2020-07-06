@@ -2,11 +2,9 @@ package user
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
-	"golang.org/x/crypto/bcrypt"
 
 	// database driver
 	_ "github.com/go-sql-driver/mysql"
@@ -25,20 +23,28 @@ type user struct {
 	ActivationToken string `db:"activation_token"`
 }
 
+// unmarshalUser is a helper function to create a grpc user from a database user
+func unmarshalUser(u *user) *proto.User {
+	return &proto.User{
+		Id:        u.ID,
+		Email:     u.Email,
+		Firstname: u.Firstname,
+		Surname:   u.Surname,
+	}
+}
+
 // repository interface
 type repository interface {
-	// get a user by id
-	get(ctx context.Context, id int64) (*user, error)
-	// get a user by mail
-	getByMail(ctx context.Context, email string) (*user, error)
-	// activate a user by token
-	activate(ctx context.Context, token string) error
-	// new registers a new user
-	new(ctx context.Context, u *user) (string, error)
-	// update an existing user
-	update(ctx context.Context, u *user) (*user, error)
-	// DeleteUser an existing user
-	DeleteUser(ctx context.Context, id int64) error
+	// CRUD
+	Create(ctx context.Context, u *user) (int64, error)
+	Read(ctx context.Context, id int64) (*user, error)
+	Update(ctx context.Context, u *user) error
+	Delete(ctx context.Context, id int64) error
+
+	// Activate user by token
+	Activate(ctx context.Context, token string) error
+	// Read by Mail
+	ReadByMail(ctx context.Context, email string) (*user, error)
 }
 
 // sqlRepository fullfills the repository interface
@@ -58,115 +64,70 @@ func newSQLRepository(dialect string, database string) (*sqlRepository, error) {
 	return res, nil
 }
 
-// get a user by id
-func (s *sqlRepository) get(ctx context.Context, id int64) (*user, error) {
-	u := &user{}
-	err := s.db.GetContext(ctx, u, "select * from users where id = ?", id)
-	return u, err
-}
-
-// get a user by mail
-func (s *sqlRepository) getByMail(ctx context.Context, email string) (*user, error) {
-	u := &user{}
-	err := s.db.GetContext(ctx, u, "select * from users where email = ?", email)
-	return u, err
-}
-
-// activate a user by token
-func (s *sqlRepository) activate(ctx context.Context, token string) error {
-	_, err := s.db.ExecContext(ctx, "update users set activated = true where activation_token = ?", token)
-	return err
-}
-
-// new registers a new user
-func (s *sqlRepository) new(ctx context.Context, u *user) (string, error) {
-	// Check for mandatory keys
-	if u.Email == "" || u.Password == nil || len(u.Password) == 0 {
-		return "", errors.New("mandatory keys email and password")
-	}
-
-	// Generate hash from password
-	password, err := bcrypt.GenerateFromPassword(u.Password, bcrypt.DefaultCost)
-	if err != nil {
-		return "", err
-	}
-	u.Password = password
-
-	// Generate registration token
-	token, err := generateToken(32)
-	if err != nil {
-		return token, fmt.Errorf("unable to generate token, %v", err)
-	}
-
+// Create a user
+func (s *sqlRepository) Create(ctx context.Context, u *user) (int64, error) {
 	// Insert new user
-	_, err = s.db.ExecContext(ctx,
+	r, err := s.db.ExecContext(ctx,
 		`INSERT INTO users
 			(email, firstname, surname, password, activated, activation_token)
 		VALUES (?, ?, ?, ?, ?, ?)`,
-		u.Email, u.Firstname, u.Surname, u.Password, false, token)
-	return token, err
-}
-
-// update an existing user
-func (s *sqlRepository) update(ctx context.Context, u *user) (*user, error) {
-	// Get user
-	user, err := s.get(ctx, u.ID)
+		u.Email, u.Firstname, u.Surname, u.Password, u.Activated, u.ActivationToken)
+	id, err := r.LastInsertId()
 	if err != nil {
-		return nil, err
+		return 0, fmt.Errorf("unable to get id, %w", err)
 	}
-
-	// Update user
-	if u.Email != "" {
-		user.Email = u.Email
-	}
-	if u.Firstname != "" {
-		user.Firstname = u.Firstname
-	}
-	if u.Surname != "" {
-		user.Surname = u.Surname
-	}
-	if u.Password != nil {
-		// Generate hash from password
-		password, err := bcrypt.GenerateFromPassword(u.Password, bcrypt.DefaultCost)
-		if err != nil {
-			return nil, err
-		}
-		user.Password = password
-	}
-
-	// Update user in database
-	_, err = s.db.ExecContext(ctx,
-		"update users set email = ?, firstname = ?, surname = ?, password = ? WHERE id = ?",
-		user.Email, user.Firstname, user.Surname, user.Password, user.ID)
-	return user, err
+	return id, err
 }
 
-// DeleteUser deletes a user by id.
-func (s *sqlRepository) DeleteUser(ctx context.Context, id int64) error {
+// Read a user by id
+func (s *sqlRepository) Read(ctx context.Context, id int64) (*user, error) {
+	u := &user{}
+	err := s.db.GetContext(ctx, u,
+		`SELECT
+			id, email, firstname, surname, activated, password
+		FROM
+			users where id = ?`, id)
+	return u, err
+}
+
+// Read a user by id
+func (s *sqlRepository) ReadByMail(ctx context.Context, email string) (*user, error) {
+	u := &user{}
+	err := s.db.GetContext(ctx, u,
+		`SELECT
+			id, email, firstname, surname, activated, password
+		FROM
+			users where email = ?`, email)
+	return u, err
+}
+
+// Update an existing user
+func (s *sqlRepository) Update(ctx context.Context, u *user) error {
+	// Update user in database
 	_, err := s.db.ExecContext(ctx,
-		`DELETE FROM users
+		`UPDATE users
+		SET email = ?,
+			firstname = ?,
+			surname = ?,
+			password = ?
 		WHERE id = ?`,
+		u.Email, u.Firstname, u.Surname,
+		u.Password, u.ID)
+	return err
+}
+
+// Delete a user by id.
+func (s *sqlRepository) Delete(ctx context.Context, id int64) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM users WHERE id = ?",
 		id)
 	return err
 }
 
-// marshalUser is a helper function to create a database user from a grpc user
-func marshalUser(u *proto.User) *user {
-	return &user{
-		ID:        u.Id,
-		Email:     u.Email,
-		Firstname: u.Firstname,
-		Surname:   u.Surname,
-		Password:  []byte(u.Password),
-	}
-}
-
-// unmarshalUser is a helper function to create a grpc user from a database user
-func unmarshalUser(u *user) *proto.User {
-	return &proto.User{
-		Id:        u.ID,
-		Email:     u.Email,
-		Firstname: u.Firstname,
-		Surname:   u.Surname,
-	}
+// Activate a user by token
+func (s *sqlRepository) Activate(ctx context.Context, token string) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE users SET activated = true WHERE activation_token = ?",
+		token)
+	return err
 }

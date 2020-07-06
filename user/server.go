@@ -9,7 +9,12 @@ import (
 	"net"
 	"sync"
 
+	empty "github.com/golang/protobuf/ptypes/empty"
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
+	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"github.com/joeshaw/envdecode"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -31,19 +36,20 @@ type server struct {
 	db           repository
 	tokenService authable
 	initOnce     sync.Once
+	logger       *zap.SugaredLogger
 }
 
-// init the resources of the server on first grpc call
-func (s *server) init(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+// initInterceptor to call server inititialization before request
+func (s *server) initInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	s.initOnce.Do(func() {
 		// Connect to database
 		if s.db == nil {
 			db, err := newSQLRepository("mysql", s.config.Database)
 			if err != nil {
-				log.Fatalf("Unable to connect to database, %v", err)
+				s.logger.Fatalw("Unable to connect to database", "error", err)
 			}
 			s.db = db
-			log.Printf("Connected to database %v", s.config.Database)
+			s.logger.Info("Connected to database")
 		}
 		// Create token service
 		if s.tokenService == nil {
@@ -58,51 +64,91 @@ func (s *server) init(ctx context.Context, req interface{}, info *grpc.UnaryServ
 	return handler(ctx, req)
 }
 
-// Get a user from the service
-func (s *server) Get(ctx context.Context, req *proto.User) (*proto.User, error) {
-	res := &proto.User{}
+// Create a new user
+func (s *server) Create(ctx context.Context, pCreateUser *proto.CreateUser) (*proto.ActivationToken, error) {
 
-	// Get user from database
-	u, err := s.db.get(ctx, req.Id)
-	if err == nil {
-		res = unmarshalUser(u)
+	// Check for mandatory keys
+	if pCreateUser.Email == "" || pCreateUser.Password == "" {
+		return nil, status.Error(
+			codes.InvalidArgument,
+			"mandatory keys missing",
+		)
 	}
-	return res, err
-}
 
-// AcActivate a user with its activation token
-func (s *server) Activate(ctx context.Context, req *proto.ActivationToken) (*proto.Response, error) {
-	err := s.db.activate(ctx, req.Token)
-	return &proto.Response{}, err
-}
-
-// Get a user by mail from the service
-func (s *server) GetByEmail(ctx context.Context, req *proto.User) (*proto.User, error) {
-	res := &proto.User{}
-
-	// Get user from database
-	u, err := s.db.getByMail(ctx, req.Email)
-	if err == nil {
-		res = unmarshalUser(u)
+	// New User
+	user := &user{
+		Email:     pCreateUser.Email,
+		Firstname: pCreateUser.Firstname,
+		Surname:   pCreateUser.Surname,
 	}
-	return res, err
-}
 
-// New user is created
-func (s *server) New(ctx context.Context, req *proto.User) (*proto.ActivationToken, error) {
-	// Create new user in database
-	token, err := s.db.new(ctx, marshalUser(req))
+	// Generate hash from password
+	password, err := bcrypt.GenerateFromPassword([]byte(pCreateUser.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate password, %w", err)
+	}
+	user.Password = password
+
+	// Generate registration token
+	token, err := generateToken(32)
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate token, %v", err)
+	}
+	user.ActivationToken = token
+
+	_, err = s.db.Create(ctx, user)
 	if err != nil {
 		return nil, status.Errorf(
-			codes.InvalidArgument, "database error, %w", err)
+			codes.InvalidArgument,
+			"unable to store new user, %w", err)
 	}
-	return &proto.ActivationToken{Token: token}, nil
+
+	return &proto.ActivationToken{Token: user.ActivationToken}, nil
+}
+
+// Read a user from the service
+func (s *server) Read(ctx context.Context, pID *proto.Id) (*proto.User, error) {
+	// Read user from database
+	u, err := s.db.Read(ctx, pID.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound,
+			"unable to get user from database, %w", err)
+	}
+	return unmarshalUser(u), err
 }
 
 // Update updates an existing user
-func (s *server) Update(ctx context.Context, req *proto.User) (*proto.User, error) {
+func (s *server) Update(ctx context.Context, pUser *proto.User) (*proto.User, error) {
+	// Read user from database
+	user, err := s.db.Read(ctx, pUser.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound,
+			"unable to get user from database, %w", err)
+	}
+
+	// Update user
+	if pUser.Email != "" {
+		user.Email = pUser.Email
+	}
+	if pUser.Firstname != "" {
+		user.Firstname = pUser.Firstname
+	}
+	if pUser.Surname != "" {
+		user.Surname = pUser.Surname
+	}
+	if pUser.Password != "" {
+		// Generate hash from password
+		password, err := bcrypt.GenerateFromPassword([]byte(pUser.Password), bcrypt.DefaultCost)
+		if err != nil {
+			if err != nil {
+				return nil, fmt.Errorf("unable to generate password, %w", err)
+			}
+		}
+		user.Password = password
+	}
+
 	// Update user in database
-	user, err := s.db.update(ctx, marshalUser(req))
+	err = s.db.Update(ctx, user)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.InvalidArgument, "database error, %w", err)
@@ -111,20 +157,25 @@ func (s *server) Update(ctx context.Context, req *proto.User) (*proto.User, erro
 }
 
 // Delete a user by id
-func (s *server) Delete(ctx context.Context, req *proto.User) (*proto.Response, error) {
-	err := s.db.DeleteUser(ctx, req.Id)
+func (s *server) Delete(ctx context.Context, pID *proto.Id) (*empty.Empty, error) {
+	err := s.db.Delete(ctx, pID.Id)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.InvalidArgument, "database error, %w", err,
 		)
 	}
-	return &proto.Response{}, nil
+	return &empty.Empty{}, nil
+}
+
+// AcActivate a user with its activation token
+func (s *server) Activate(ctx context.Context, req *proto.ActivationToken) (*empty.Empty, error) {
+	return &empty.Empty{}, s.db.Activate(ctx, req.Token)
 }
 
 // Auth authenticats a user an returns a JWT
-func (s *server) Auth(ctx context.Context, req *proto.User) (*proto.Token, error) {
+func (s *server) Auth(ctx context.Context, pAuthUser *proto.AuthUser) (*proto.Token, error) {
 	// Get user by mail
-	user, err := s.db.getByMail(ctx, req.Email)
+	user, err := s.db.ReadByMail(ctx, pAuthUser.Email)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.NotFound, "database error %w", err)
@@ -140,7 +191,7 @@ func (s *server) Auth(ctx context.Context, req *proto.User) (*proto.Token, error
 
 	// Compare password
 	if err := bcrypt.CompareHashAndPassword(
-		user.Password, []byte(req.Password)); err != nil {
+		user.Password, []byte(pAuthUser.Password)); err != nil {
 		return nil, status.Errorf(
 			codes.PermissionDenied,
 			"password wrong, %w", err)
@@ -179,29 +230,55 @@ func (s *server) ValidateToken(ctx context.Context, req *proto.Token) (*proto.Va
 	}, nil
 }
 
-// Run the mail server
+// Run the user server
 func Run() error {
+	baseLogger, err := zap.NewProduction()
+	if err != nil {
+		log.Printf("Unable to initialize logger, %v", err)
+		return err
+	}
+	logger := baseLogger.Sugar()
+	logger.Info("Initialized logger")
+
 	// Get Config
 	var c config
 	if err := envdecode.StrictDecode(&c); err != nil {
-		return fmt.Errorf("unable to read config, %v", err)
+		logger.Errorw("Unable to read config", "error", err)
+		return err
 	}
 
 	// TCP Listener
 	l, err := net.Listen("tcp", c.Listen)
 	if err != nil {
+		logger.Errorw("Unable to open tcp connection for grpc server", "error", err)
 		return err
 	}
 
 	// Create server
-	s := &server{config: &c}
+	s := &server{
+		config: &c,
+		logger: logger,
+	}
+
+	// Make sure that log statements internal to gRPC library are logged using the zapLogger as well.
+	grpc_zap.ReplaceGrpcLoggerV2(baseLogger)
+	// Create a server, make sure we put the grpc_ctxtags context before everything else.
+	grpcServer := grpc.NewServer(
+		grpc_middleware.WithUnaryServerChain(
+			grpc_ctxtags.UnaryServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
+			grpc_zap.UnaryServerInterceptor(baseLogger),
+			s.initInterceptor,
+		))
 
 	// GRPC Server with init interceptor
-	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(s.init))
 	proto.RegisterUserServiceServer(grpcServer, s)
 
 	// Serve
-	return grpcServer.Serve(l)
+	if err := grpcServer.Serve(l); err != nil {
+		logger.Errorw("Error while serving grpc server", "error", err)
+		return err
+	}
+	return nil
 }
 
 // generateToken generates a url friendly token secure token

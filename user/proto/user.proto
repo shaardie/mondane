@@ -1,18 +1,34 @@
 syntax = "proto3";
-
+import "google/protobuf/empty.proto";
 package mondane.user;
 
 option go_package = "user/proto";
 
 service UserService {
-    rpc Get(User) returns (User) {}
-    rpc GetByEmail(User) returns (User) {}
-    rpc New(User) returns (ActivationToken) {}
-    rpc Activate(ActivationToken) returns (Response) {}
+    // CRUD
+    rpc Create(CreateUser) returns (ActivationToken) {}
+    rpc Read(Id) returns (User) {}
     rpc Update(User) returns (User) {}
-    rpc Auth(User) returns (Token) {}
+    rpc Delete(Id) returns (google.protobuf.Empty) {}
+
+    rpc Activate(ActivationToken) returns (google.protobuf.Empty) {}
+    rpc Auth(AuthUser) returns (Token) {}
     rpc ValidateToken(Token) returns (ValidatedToken) {}
-    rpc Delete(User) returns (Response) {}
+}
+
+message Id {
+    int64 id = 1;
+}
+
+message CreateUser {
+    string email = 2;
+    string firstname = 3;
+    string surname = 4;
+    string password = 5;
+}
+
+message ActivationToken {
+    string token = 2;
 }
 
 message User {
@@ -20,7 +36,12 @@ message User {
     string email = 2;
     string firstname = 3;
     string surname = 4;
-    string Password = 5;
+    string password = 5;
+}
+
+message AuthUser {
+    string email = 1;
+    string password = 2;
 }
 
 message Token {
@@ -30,10 +51,4 @@ message Token {
 message ValidatedToken {
     User user = 2;
     bool valid = 3;
-}
-
-message Response {}
-
-message ActivationToken {
-    string token = 2;
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -83,14 +82,14 @@ func mainWithError() error {
 	// Switch to different modes
 	switch parse {
 	case "register":
-		token, err := c.New(context.Background(), &proto.User{
+		token, err := c.Create(context.Background(), &proto.CreateUser{
 			Email:     *registerEmail,
 			Firstname: *registerFirstname,
 			Surname:   *registerSurname,
 			Password:  *registerPassword,
 		})
 		if err != nil {
-			return fmt.Errorf("Unable to register user %v", err)
+			return fmt.Errorf("Unable to register user %w", err)
 		}
 		fmt.Println("Registered user.")
 		printActivationToken(token)
@@ -99,24 +98,15 @@ func mainWithError() error {
 			Token: *activateToken,
 		})
 		if err != nil {
-			return fmt.Errorf("Unable to activate user %v", err)
+			return fmt.Errorf("Unable to activate user %w", err)
 		}
 		log.Println("Activated user.")
 	case "get":
 		var u *proto.User
 		var err error
-		if *getID != 0 {
-			u, err = c.Get(ctx, &proto.User{Id: *getID})
-			if err != nil {
-				return fmt.Errorf("unable to get user with id %v, %v", *getID, err)
-			}
-		} else if *getEmail != "" {
-			u, err = c.GetByEmail(ctx, &proto.User{Email: *getEmail})
-			if err != nil {
-				return fmt.Errorf("unable to get user with email %v, %v", *getEmail, err)
-			}
-		} else {
-			return errors.New("id or email has to be set")
+		u, err = c.Read(ctx, &proto.Id{Id: *getID})
+		if err != nil {
+			return fmt.Errorf("unable to get user with id %v, %w", *getID, err)
 		}
 		printUser(u)
 	case "update":
@@ -132,7 +122,7 @@ func mainWithError() error {
 		}
 		printUser(u)
 	case "auth":
-		token, err := c.Auth(ctx, &proto.User{
+		token, err := c.Auth(ctx, &proto.AuthUser{
 			Email:    *authEmail,
 			Password: *authPassword})
 		if err != nil {
@@ -146,7 +136,6 @@ func mainWithError() error {
 		}
 		printValidatedToken(t)
 	}
-
 	return nil
 }
 

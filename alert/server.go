@@ -147,7 +147,7 @@ func (s *server) Firing(ctx context.Context, check *proto.Check) (*proto.Respons
 		s.logger.Infow("Attempt to fire alert", "alert", alert)
 
 		// Get user
-		u, err := s.user.Get(ctx, &user.User{Id: alert.UserID})
+		u, err := s.user.Read(ctx, &user.Id{Id: alert.UserID})
 		if err != nil {
 			s.logger.Infow("Unable to get user from user service", "error", err)
 			return nil, err
