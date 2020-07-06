@@ -3,14 +3,10 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/shaardie/mondane/mail/proto"
 	userService "github.com/shaardie/mondane/user/proto"
@@ -29,74 +25,23 @@ Regards
 `
 )
 
-var (
-	unauthError = responseError{"unauthenticated"}
-)
-
 type userKey struct{}
 
-type userRequest struct {
-	ID        int64  `json:"-"`
-	Email     string `json:"email"`
-	Firstname string `json:"firstname"`
-	Surname   string `json:"surname"`
-	Password  string `json:"password"`
-}
-
-type userResponse struct {
-	ID        int64  `json:"-"`
-	Email     string `json:"email"`
-	Firstname string `json:"firstname"`
-	Surname   string `json:"surname"`
-}
-
-func unmarshalUserRequest(ur *userRequest) *userService.User {
-	return &userService.User{
-		Id:        ur.ID,
-		Email:     ur.Email,
-		Firstname: ur.Firstname,
-		Surname:   ur.Surname,
-		Password:  ur.Password,
-	}
-}
-
-func marshalUserResponse(pUser *userService.User) *userResponse {
-	return &userResponse{
-		ID:        pUser.Id,
-		Email:     pUser.Email,
-		Firstname: pUser.Firstname,
-		Surname:   pUser.Surname,
-	}
-}
-
-func (s *server) createUser() http.HandlerFunc {
+func (s *server) CreateUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get new User
-		newUser := &userRequest{}
-		err := json.NewDecoder(r.Body).Decode(newUser)
+		newUser := &userService.CreateUser{}
+		err := readJSON(r, newUser)
 		if err != nil {
 			s.response(
 				w, r, http.StatusBadRequest,
-				err, responseError{"Improper JSON"})
+				err, jsonError)
 			return
 		}
-		activationToken, err := s.user.New(
-			r.Context(), unmarshalUserRequest(newUser))
+
+		activationToken, err := s.user.Create(r.Context(), newUser)
 		if err != nil {
-			e, ok := status.FromError(err)
-			if !ok {
-				s.response(w, r, http.StatusInternalServerError,
-					err, internalError)
-				return
-			}
-			switch e.Code() {
-			case codes.InvalidArgument:
-				s.response(w, r, http.StatusForbidden, err,
-					responseError{"Invalid Argument"})
-			default:
-				s.response(w, r, http.StatusInternalServerError,
-					err, internalError)
-			}
+			s.handleGRPCError(w, r, err)
 			return
 		}
 
@@ -120,19 +65,18 @@ func (s *server) createUser() http.HandlerFunc {
 
 		_, err = s.mail.SendMail(r.Context(), &proto.Mail{
 			Recipient: newUser.Email,
-			Subject:   "Mondane registration",
+			Subject:   "Mondane Registration",
 			Message:   buf.String(),
 		})
 		if err != nil {
-			s.response(w, r, http.StatusInternalServerError,
-				err, internalError)
+			s.handleGRPCError(w, r, err)
 			return
 		}
 		s.response(w, r, http.StatusOK, nil, nil)
 	}
 }
 
-func (s *server) registerUser() http.HandlerFunc {
+func (s *server) ActivateUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get token from url
 		token := r.FormValue("token")
@@ -140,16 +84,16 @@ func (s *server) registerUser() http.HandlerFunc {
 		// Get user from database via token
 		_, err := s.user.Activate(r.Context(), &userService.ActivationToken{Token: token})
 		if err != nil {
-			s.response(w, r, http.StatusBadRequest, err,
-				responseError{"Invalid Token"})
+			s.handleGRPCError(w, r, err)
+			return
 		}
 		s.response(w, r, http.StatusOK, nil, nil)
 	}
 }
 
-func (s *server) getUser() http.HandlerFunc {
+func (s *server) ReadUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := r.Context().Value(userKey{}).(*userResponse)
+		u, ok := r.Context().Value(userKey{}).(*userService.User)
 		if !ok {
 			s.response(w, r, http.StatusInternalServerError,
 				errors.New("No user in context"), internalError)
@@ -159,132 +103,84 @@ func (s *server) getUser() http.HandlerFunc {
 	}
 }
 
-func (s *server) updateUser() http.HandlerFunc {
+func (s *server) UpdateUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := r.Context().Value(userKey{}).(*userResponse)
+		u, ok := r.Context().Value(userKey{}).(*userService.User)
 		if !ok {
 			s.response(w, r, http.StatusInternalServerError,
 				errors.New("No user in context"), internalError)
 			return
 		}
 
-		// Get User update
-		updateUserRequest := &userRequest{}
-		err := json.NewDecoder(r.Body).Decode(updateUserRequest)
+		// Get Updates
+		updates := &userService.User{}
+		err := readJSON(r, updates)
 		if err != nil {
-			s.response(
-				w, r, http.StatusBadRequest,
-				err, responseError{"Improper JSON"})
+			s.response(w, r, http.StatusBadRequest, err, jsonError)
 			return
 		}
 
-		updateUserRequest.ID = u.ID
+		// Set id of the user
+		updates.Id = u.Id
 
-		pUser, err := s.user.Update(
-			r.Context(), unmarshalUserRequest(updateUserRequest))
+		pUser, err := s.user.Update(r.Context(), updates)
 		if err != nil {
-			e, ok := status.FromError(err)
-			if !ok {
-				s.response(w, r, http.StatusInternalServerError,
-					err, internalError)
-				return
-			}
-			switch e.Code() {
-			case codes.InvalidArgument:
-				s.response(w, r, http.StatusForbidden, err,
-					responseError{"Invalid Argument"})
-			default:
-				s.response(w, r, http.StatusInternalServerError,
-					err, internalError)
-			}
+			s.handleGRPCError(w, r, err)
 			return
 		}
-		s.response(w, r, http.StatusOK, nil, marshalUserResponse(pUser))
+		s.response(w, r, http.StatusOK, nil, pUser)
 	}
 }
 
-func (s *server) deleteUser() http.HandlerFunc {
+func (s *server) DeleteUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := r.Context().Value(userKey{}).(*userResponse)
+		u, ok := r.Context().Value(userKey{}).(*userService.User)
 		if !ok {
 			s.response(w, r, http.StatusInternalServerError,
 				errors.New("No user in context"), internalError)
 			return
 		}
-		_, err := s.user.Delete(r.Context(), &userService.User{Id: u.ID})
+		_, err := s.user.Delete(r.Context(), &userService.Id{Id: u.Id})
 		if err != nil {
-			e, ok := status.FromError(err)
-			if !ok {
-				s.response(w, r, http.StatusInternalServerError,
-					err, internalError)
-				return
-			}
-			switch e.Code() {
-			case codes.InvalidArgument:
-				s.response(w, r, http.StatusForbidden, err,
-					responseError{"Invalid Argument"})
-			default:
-				s.response(w, r, http.StatusInternalServerError,
-					err, internalError)
-			}
+			s.handleGRPCError(w, r, err)
 			return
 		}
 		s.response(w, r, http.StatusOK, nil, nil)
 	}
 }
 
-func (s *server) authentication(h http.HandlerFunc) http.HandlerFunc {
+func (s *server) AuthenticateUser(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(cookieName)
 		if err != nil {
-			if err == http.ErrNoCookie {
-				s.response(w, r, http.StatusUnauthorized,
-					err, unauthError)
-				return
-			}
-			s.response(w, r, http.StatusInternalServerError, err,
-				internalError)
+			s.response(w, r, http.StatusUnauthorized,
+				err, unauthError)
 			return
 		}
 
-		validatedToken, err := s.user.ValidateToken(r.Context(), &userService.Token{Token: cookie.Value})
+		validatedToken, err := s.user.ValidateToken(
+			r.Context(), &userService.Token{Token: cookie.Value})
 		if err != nil {
-			e, ok := status.FromError(err)
-			if !ok {
-				s.response(w, r, http.StatusInternalServerError, err,
-					internalError)
-				return
-			}
-			switch e.Code() {
-			case codes.InvalidArgument:
-				s.response(w, r, http.StatusUnauthorized, err, unauthError)
-			default:
-				s.logger.Infow("Unknown GRPC Server error", "error", err)
-				s.response(w, r, http.StatusInternalServerError, err,
-					internalError)
-			}
+			s.handleGRPCError(w, r, err)
 			return
 		}
+
 		if !validatedToken.Valid {
 			s.response(w, r, http.StatusUnauthorized, nil, unauthError)
 			return
 		}
 
 		ctx := context.WithValue(r.Context(),
-			userKey{}, marshalUserResponse(validatedToken.User))
+			userKey{}, validatedToken.User)
 		h(w, r.WithContext(ctx))
 	}
 }
 
-func (s *server) createLogin() http.HandlerFunc {
-	type loginRequest struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
+func (s *server) CreateLogin() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get authentication
-		var lr loginRequest
-		err := json.NewDecoder(r.Body).Decode(&lr)
+		authUser := &userService.AuthUser{}
+		err := readJSON(r, authUser)
 		if err != nil {
 			s.response(
 				w, r, http.StatusBadRequest,
@@ -292,45 +188,14 @@ func (s *server) createLogin() http.HandlerFunc {
 			return
 		}
 
-		if lr.Email == "" {
-			s.response(
-				w, r, http.StatusBadRequest,
-				nil, responseError{"Email missing"})
-			return
-		}
-
-		if lr.Password == "" {
-			s.response(
-				w, r, http.StatusBadRequest,
-				nil, responseError{"Password missing"})
-			return
-		}
-
-		token, err := s.user.Auth(r.Context(), &userService.User{
-			Email:    lr.Email,
-			Password: lr.Password,
-		})
+		// Get token
+		token, err := s.user.Auth(r.Context(), authUser)
 		if err != nil {
-			e, ok := status.FromError(err)
-			if !ok {
-				s.response(w, r, http.StatusInternalServerError,
-					err, internalError)
-				return
-			}
-			switch e.Code() {
-			case codes.PermissionDenied:
-				s.response(w, r, http.StatusForbidden, err,
-					responseError{"wrong authentication"})
-			case codes.NotFound:
-				s.response(w, r, http.StatusForbidden, err,
-					responseError{"wrong authentication"})
-			default:
-				s.response(w, r, http.StatusInternalServerError,
-					err, internalError)
-			}
+			s.handleGRPCError(w, r, err)
 			return
 		}
 
+		// Set cookie
 		http.SetCookie(
 			w,
 			&http.Cookie{

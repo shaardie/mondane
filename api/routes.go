@@ -14,27 +14,27 @@ func (s *server) routes() {
 	// Route session requests
 	loginRouter := s.router.PathPrefix("/api/v1/login").Subrouter()
 	loginRouter.Path("").Methods(http.MethodPost).HandlerFunc(
-		s.logRequest(s.enforceJSON(s.createLogin())))
+		s.logRequest(s.enforceJSON(s.CreateLogin())))
 
 	// Register
 	s.router.Path("/api/v1/register").Methods(http.MethodGet).
 		Queries("token", "{token}").HandlerFunc(
-		s.logRequest(s.registerUser()),
+		s.logRequest(s.ActivateUser()),
 	)
 
 	// Route user requests
 	userRouter := s.router.PathPrefix("/api/v1/user").Subrouter()
 	userRouter.Path("/").Methods(http.MethodPost).HandlerFunc(
-		s.logRequest(s.enforceJSON(s.createUser())),
+		s.logRequest(s.enforceJSON(s.CreateUser())),
 	)
 	userRouter.Path("/").Methods(http.MethodGet).HandlerFunc(
-		s.logRequest(s.authentication(s.getUser())),
+		s.logRequest(s.AuthenticateUser(s.ReadUser())),
 	)
 	userRouter.Path("/").Methods(http.MethodPatch).HandlerFunc(
-		s.logRequest(s.authentication(s.updateUser())),
+		s.logRequest(s.AuthenticateUser(s.UpdateUser())),
 	)
 	userRouter.Path("/").Methods(http.MethodDelete).HandlerFunc(
-		s.logRequest(s.authentication(s.deleteUser())),
+		s.logRequest(s.AuthenticateUser(s.DeleteUser())),
 	)
 
 	// Use initHandler in all requests
