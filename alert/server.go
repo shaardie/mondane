@@ -8,13 +8,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/ptypes"
+	empty "github.com/golang/protobuf/ptypes/empty"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-
 	"github.com/joeshaw/envdecode"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/shaardie/mondane/alert/proto"
 	mail "github.com/shaardie/mondane/mail/proto"
@@ -77,8 +80,8 @@ func (s *server) initInterceptor(ctx context.Context, req interface{}, info *grp
 	return handler(ctx, req)
 }
 
-// GetAlert gets an alert by id
-func (s *server) GetAlert(ctx context.Context, id *proto.Id) (*proto.Alert, error) {
+// Read alert by id
+func (s *server) Read(ctx context.Context, id *proto.Id) (*proto.Alert, error) {
 	alert, err := s.db.Get(ctx, id.Id)
 	if err != nil {
 		return nil, err
@@ -86,8 +89,8 @@ func (s *server) GetAlert(ctx context.Context, id *proto.Id) (*proto.Alert, erro
 	return unmarshalAlert(alert)
 }
 
-// GetAlertsByUser gets an alert by user id
-func (s *server) GetAlertsByUser(ctx context.Context, id *proto.Id) (*proto.Alerts, error) {
+// ReadByUser gets all alerts by user id
+func (s *server) ReadByUser(ctx context.Context, id *proto.Id) (*proto.Alerts, error) {
 	alerts, err := s.db.GetByUser(ctx, id.Id)
 	if err != nil {
 		return nil, err
@@ -96,22 +99,39 @@ func (s *server) GetAlertsByUser(ctx context.Context, id *proto.Id) (*proto.Aler
 }
 
 // CreateAlert creates new alert
-func (s *server) CreateAlert(ctx context.Context, pAlert *proto.Alert) (*proto.Response, error) {
-	alert, err := marshalAlert(pAlert)
-	if err != nil {
-		return nil, err
+func (s *server) Create(ctx context.Context, pCreateAlert *proto.CreateAlert) (*proto.Alert, error) {
+	alert := &alert{
+		UserID:    pCreateAlert.UserId,
+		CheckID:   pCreateAlert.CheckId,
+		CheckType: pCreateAlert.CheckType,
+		SendMail:  pCreateAlert.SendMail,
 	}
-	err = s.db.Create(ctx, alert)
-	return &proto.Response{}, nil
+
+	var err error
+	alert.SendPeriod, err = ptypes.Duration(pCreateAlert.SendPeriod)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"unable to parse send period, %w", err)
+	}
+	newAlert, err := s.db.Create(ctx, alert)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"unable to parse send period, %w", err)
+	}
+	pAlert, err := unmarshalAlert(newAlert)
+	if err != nil {
+		return nil, fmt.Errorf("failure during unmarshaling alert", err)
+	}
+	return pAlert, nil
 }
 
-// DeleteAlert delete an alert by id
-func (s *server) DeleteAlert(ctx context.Context, id *proto.Id) (*proto.Response, error) {
-	return &proto.Response{}, s.db.Delete(ctx, id.Id)
+// Delete an alert by id
+func (s *server) Delete(ctx context.Context, id *proto.Id) (*empty.Empty, error) {
+	return &empty.Empty{}, s.db.Delete(ctx, id.Id)
 }
 
 // Firing triggers the firing of all alerts of a check
-func (s *server) Firing(ctx context.Context, check *proto.Check) (*proto.Response, error) {
+func (s *server) Firing(ctx context.Context, check *proto.Check) (*empty.Empty, error) {
 	// Get all alerts matching the check
 	alerts, err := s.db.GetByCheck(ctx, check.Id, check.Type)
 	if err != nil {
@@ -171,7 +191,7 @@ func (s *server) Firing(ctx context.Context, check *proto.Check) (*proto.Respons
 			return nil, err
 		}
 	}
-	return &proto.Response{}, nil
+	return &empty.Empty{}, nil
 }
 
 // Run the server

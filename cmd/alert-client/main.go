@@ -43,7 +43,7 @@ func mainWithError() error {
 	// Switch to different modes
 	switch parse {
 	case "create":
-		_, err := c.CreateAlert(context.Background(), &proto.Alert{
+		_, err := c.Create(context.Background(), &proto.CreateAlert{
 			UserId:    *createUserID,
 			CheckId:   *createCheckID,
 			CheckType: *createCheckType,

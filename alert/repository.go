@@ -55,32 +55,6 @@ func unmarshalAlerts(as *[]alert) (*proto.Alerts, error) {
 	return &proto.Alerts{Alerts: results}, nil
 }
 
-// marshal an protobuf alert to fit to the database
-func marshalAlert(pa *proto.Alert) (*alert, error) {
-	a := &alert{
-		UserID:    pa.UserId,
-		CheckID:   pa.CheckId,
-		CheckType: pa.CheckType,
-		SendMail:  pa.SendMail,
-	}
-
-	if pa.LastSend != nil {
-		lastSend, err := ptypes.Timestamp(pa.LastSend)
-		if err != nil {
-			return nil, fmt.Errorf("marshal error, %w", err)
-		}
-		a.LastSend = lastSend
-	}
-
-	sendPeriod, err := ptypes.Duration(pa.SendPeriod)
-	if err != nil {
-		return nil, fmt.Errorf("marshal error, %w", err)
-	}
-	a.SendPeriod = sendPeriod
-
-	return a, nil
-}
-
 // repository is the interface to the database
 type repository interface {
 	// Get an alert from its id
@@ -90,7 +64,7 @@ type repository interface {
 	// Get all alerts from a check by id and type
 	GetByCheck(context.Context, int64, string) (*[]alert, error)
 	// Create a new alert
-	Create(context.Context, *alert) error
+	Create(context.Context, *alert) (*alert, error)
 	// Delete a alert by id
 	Delete(context.Context, int64) error
 	// Update last send from alert wit id
@@ -145,13 +119,21 @@ func (s *sqlRepository) GetByCheck(ctx context.Context, checkID int64, checkType
 	return as, err
 }
 
-func (s *sqlRepository) Create(ctx context.Context, a *alert) error {
-	_, err := s.db.ExecContext(ctx,
+func (s *sqlRepository) Create(ctx context.Context, a *alert) (*alert, error) {
+	r, err := s.db.ExecContext(ctx,
 		`INSERT INTO alerts
 			(user_id, check_id, check_type, send_mail, send_period, last_send)
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		a.UserID, a.CheckID, a.CheckType, a.SendMail, a.SendPeriod, time.Time{})
-	return err
+	if err != nil {
+		return nil, fmt.Errorf("unable to create alert %w", err)
+	}
+
+	id, err := r.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get alert id, %w", err)
+	}
+	return s.Get(ctx, id)
 }
 
 func (s *sqlRepository) Delete(ctx context.Context, id int64) error {

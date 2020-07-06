@@ -1,6 +1,7 @@
 syntax = "proto3";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 
 
 package mondane.alert;
@@ -8,12 +9,13 @@ package mondane.alert;
 option go_package = "alert/proto";
 
 service AlertService {
-    rpc getAlert(Id) returns (Alert);
-    rpc getAlertsByUser(Id) returns (Alerts);
-    rpc createAlert(Alert) returns (Response);
-    rpc deleteAlert(Id) returns (Response);
+    // CRD
+    rpc Create(CreateAlert) returns (Alert);
+    rpc Read(Id) returns (Alert);
+    rpc Delete(Id) returns (google.protobuf.Empty) {}
 
-    rpc firing(Check) returns (Response);
+    rpc ReadByUser(Id) returns (Alerts);
+    rpc firing(Check) returns (google.protobuf.Empty);
 }
 
 message Id {
@@ -29,6 +31,14 @@ message Alerts {
     repeated Alert alerts = 1;
 }
 
+message CreateAlert {
+    int64 user_id = 1;
+    int64 check_id = 2;
+    string check_type = 3;
+    bool send_mail = 4;
+    google.protobuf.Duration send_period = 5;
+}
+
 message Alert {
     int64 id = 1;
     int64 user_id = 2;
@@ -38,5 +48,3 @@ message Alert {
     google.protobuf.Timestamp last_send = 6;
     google.protobuf.Duration send_period = 7;
 }
-
-message Response {}
