@@ -37,6 +37,12 @@ func (s *server) routes() {
 		s.logRequest(s.AuthenticateUser(s.DeleteUser())),
 	)
 
+	// Route alert requests
+	alertRouter := s.router.PathPrefix("/api/v1/alert").Subrouter()
+	alertRouter.Path("/").Methods(http.MethodPost).HandlerFunc(
+		s.logRequest(s.enforceJSON(s.AuthenticateUser(s.CreateAlert()))),
+	)
+
 	// Use initHandler in all requests
 	s.router.Use(s.initHandler)
 
