@@ -57,8 +57,8 @@ func unmarshalAlerts(as *[]alert) (*proto.Alerts, error) {
 
 // repository is the interface to the database
 type repository interface {
-	// Get an alert from its id
-	Get(context.Context, int64) (*alert, error)
+	// Get an alert from its ids
+	Get(context.Context, int64, int64) (*alert, error)
 	// Get all alerts from a user id
 	GetByUser(context.Context, int64) (*[]alert, error)
 	// Get all alerts from a check by id and type
@@ -66,7 +66,7 @@ type repository interface {
 	// Create a new alert
 	Create(context.Context, *alert) (*alert, error)
 	// Delete a alert by id
-	Delete(context.Context, int64) error
+	Delete(context.Context, int64, int64) error
 	// Update last send from alert wit id
 	UpdateLastSend(context.Context, int64) error
 }
@@ -88,13 +88,14 @@ func newSQLRepository(dialect string, database string) (*sqlRepository, error) {
 	return res, nil
 }
 
-func (s *sqlRepository) Get(ctx context.Context, id int64) (*alert, error) {
+func (s *sqlRepository) Get(ctx context.Context, id int64, userID int64) (*alert, error) {
 	alert := &alert{}
 	err := s.db.GetContext(ctx, alert,
 		`SELECT id, user_id, check_id, check_type, send_mail,last_send,
 			send_period
  		FROM alerts
- 		WHERE id = ?`, id)
+		WHERE id = ?
+		AND user_id = ?`, id, userID)
 	return alert, err
 }
 
@@ -133,11 +134,13 @@ func (s *sqlRepository) Create(ctx context.Context, a *alert) (*alert, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to get alert id, %w", err)
 	}
-	return s.Get(ctx, id)
+	return s.Get(ctx, id, a.UserID)
 }
 
-func (s *sqlRepository) Delete(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM alerts WHERE id = ?", id)
+func (s *sqlRepository) Delete(ctx context.Context, id int64, userID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM alerts WHERE id = ? AND user_id = ?",
+		id, userID)
 	return err
 }
 

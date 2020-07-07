@@ -2,10 +2,13 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 
+	"github.com/gorilla/mux"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -137,4 +140,12 @@ func (s *server) writeJSON(w http.ResponseWriter, r *http.Request, data interfac
 		}
 	}
 	return nil
+}
+
+func getID(r *http.Request) (int64, error) {
+	idVar, ok := mux.Vars(r)["id"]
+	if !ok {
+		return 0, errors.New("unable to get id from mux vars")
+	}
+	return strconv.ParseInt(idVar, 10, 64)
 }

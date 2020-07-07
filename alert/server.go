@@ -81,17 +81,17 @@ func (s *server) initInterceptor(ctx context.Context, req interface{}, info *grp
 }
 
 // Read alert by id
-func (s *server) Read(ctx context.Context, id *proto.Id) (*proto.Alert, error) {
-	alert, err := s.db.Get(ctx, id.Id)
+func (s *server) Read(ctx context.Context, id *proto.Ids) (*proto.Alert, error) {
+	alert, err := s.db.Get(ctx, id.Id, id.UserId)
 	if err != nil {
 		return nil, err
 	}
 	return unmarshalAlert(alert)
 }
 
-// ReadByUser gets all alerts by user id
-func (s *server) ReadByUser(ctx context.Context, id *proto.Id) (*proto.Alerts, error) {
-	alerts, err := s.db.GetByUser(ctx, id.Id)
+// ReadAll gets all alerts by user id
+func (s *server) ReadAll(ctx context.Context, id *proto.UserId) (*proto.Alerts, error) {
+	alerts, err := s.db.GetByUser(ctx, id.UserId)
 	if err != nil {
 		return nil, err
 	}
@@ -120,14 +120,14 @@ func (s *server) Create(ctx context.Context, pCreateAlert *proto.CreateAlert) (*
 	}
 	pAlert, err := unmarshalAlert(newAlert)
 	if err != nil {
-		return nil, fmt.Errorf("failure during unmarshaling alert", err)
+		return nil, fmt.Errorf("failure during unmarshaling alert, %w", err)
 	}
 	return pAlert, nil
 }
 
 // Delete an alert by id
-func (s *server) Delete(ctx context.Context, id *proto.Id) (*empty.Empty, error) {
-	return &empty.Empty{}, s.db.Delete(ctx, id.Id)
+func (s *server) Delete(ctx context.Context, id *proto.Ids) (*empty.Empty, error) {
+	return &empty.Empty{}, s.db.Delete(ctx, id.Id, id.UserId)
 }
 
 // Firing triggers the firing of all alerts of a check
