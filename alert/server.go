@@ -82,7 +82,7 @@ func (s *server) initInterceptor(ctx context.Context, req interface{}, info *grp
 
 // Read alert by id
 func (s *server) Read(ctx context.Context, id *proto.Ids) (*proto.Alert, error) {
-	alert, err := s.db.Get(ctx, id.Id, id.UserId)
+	alert, err := s.db.Read(ctx, id.Id, id.UserId)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (s *server) Read(ctx context.Context, id *proto.Ids) (*proto.Alert, error) 
 
 // ReadAll gets all alerts by user id
 func (s *server) ReadAll(ctx context.Context, id *proto.UserId) (*proto.Alerts, error) {
-	alerts, err := s.db.GetByUser(ctx, id.UserId)
+	alerts, err := s.db.ReadAll(ctx, id.UserId)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +125,35 @@ func (s *server) Create(ctx context.Context, pCreateAlert *proto.CreateAlert) (*
 	return pAlert, nil
 }
 
+func (s *server) Update(ctx context.Context, pUpdateAlert *proto.UpdateAlert) (*proto.Alert, error) {
+	alert := &alert{
+		ID:        pUpdateAlert.Id,
+		UserID:    pUpdateAlert.UserId,
+		CheckID:   pUpdateAlert.CheckId,
+		CheckType: pUpdateAlert.CheckType,
+		SendMail:  pUpdateAlert.SendMail,
+	}
+
+	var err error
+	alert.SendPeriod, err = ptypes.Duration(pUpdateAlert.SendPeriod)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"unable to parse send period, %w", err)
+	}
+
+	updatedAlert, err := s.db.Update(ctx, alert)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"unable to update alert %v, %w", pUpdateAlert.Id, err)
+	}
+
+	pAlert, err := unmarshalAlert(updatedAlert)
+	if err != nil {
+		return nil, fmt.Errorf("failure during unmarshaling alert, %w", err)
+	}
+	return pAlert, nil
+}
+
 // Delete an alert by id
 func (s *server) Delete(ctx context.Context, id *proto.Ids) (*empty.Empty, error) {
 	return &empty.Empty{}, s.db.Delete(ctx, id.Id, id.UserId)
@@ -133,7 +162,7 @@ func (s *server) Delete(ctx context.Context, id *proto.Ids) (*empty.Empty, error
 // Firing triggers the firing of all alerts of a check
 func (s *server) Firing(ctx context.Context, check *proto.Check) (*empty.Empty, error) {
 	// Get all alerts matching the check
-	alerts, err := s.db.GetByCheck(ctx, check.Id, check.Type)
+	alerts, err := s.db.ReadByCheck(ctx, check.Id, check.UserId, check.Type)
 	if err != nil {
 		s.logger.Warnw("Unable to get alert",
 			"check_id", check.Id,
@@ -185,7 +214,7 @@ func (s *server) Firing(ctx context.Context, check *proto.Check) (*empty.Empty, 
 		}
 
 		// Update last send
-		err = s.db.UpdateLastSend(ctx, alert.ID)
+		err = s.db.UpdateLastSend(ctx, alert.ID, alert.UserID)
 		if err != nil {
 			s.logger.Infow("Unable to update alert", "error", err, "alert", alert)
 			return nil, err

@@ -9,11 +9,12 @@ package mondane.alert;
 option go_package = "alert/proto";
 
 service AlertService {
-    // CRD
+    // CRUD
     rpc Create(CreateAlert) returns (Alert);
     rpc Read(Ids) returns (Alert);
     rpc ReadAll(UserId) returns (Alerts);
-    rpc Delete(Ids) returns (google.protobuf.Empty) {}
+    rpc Delete(Ids) returns (google.protobuf.Empty);
+    rpc Update(UpdateAlert) returns (Alert);
 
     rpc Firing(Check) returns (google.protobuf.Empty);
 }
@@ -29,7 +30,8 @@ message UserId {
 
 message Check {
     int64 id = 1;
-    string type = 2;
+    int64 user_id = 2;
+    string type = 3;
 }
 
 message Alerts {
@@ -43,6 +45,16 @@ message CreateAlert {
     bool send_mail = 4;
     google.protobuf.Duration send_period = 5;
 }
+
+message UpdateAlert {
+    int64 id = 1;
+    int64 user_id = 2;
+    int64 check_id = 3;
+    string check_type = 4;
+    bool send_mail = 5;
+    google.protobuf.Duration send_period = 6;
+};
+
 
 message Alert {
     int64 id = 1;

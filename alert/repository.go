@@ -56,19 +56,15 @@ func unmarshalAlerts(as *[]alert) (*proto.Alerts, error) {
 }
 
 // repository is the interface to the database
+// It is user centered, so every call should filter by user.
 type repository interface {
-	// Get an alert from its ids
-	Get(context.Context, int64, int64) (*alert, error)
-	// Get all alerts from a user id
-	GetByUser(context.Context, int64) (*[]alert, error)
-	// Get all alerts from a check by id and type
-	GetByCheck(context.Context, int64, string) (*[]alert, error)
-	// Create a new alert
-	Create(context.Context, *alert) (*alert, error)
-	// Delete a alert by id
-	Delete(context.Context, int64, int64) error
-	// Update last send from alert wit id
-	UpdateLastSend(context.Context, int64) error
+	Create(ctx context.Context, alert *alert) (*alert, error)
+	Read(ctx context.Context, alertID, userID int64) (*alert, error)
+	ReadAll(ctx context.Context, userID int64) (*[]alert, error)
+	ReadByCheck(ctx context.Context, checkID, userID int64, checkType string) (*[]alert, error)
+	Update(ctx context.Context, alert *alert) (*alert, error)
+	Delete(ctx context.Context, alertID, userID int64) error
+	UpdateLastSend(ctx context.Context, alertID, userID int64) error
 }
 
 // sqlRepository fullfills the repository interface
@@ -88,38 +84,6 @@ func newSQLRepository(dialect string, database string) (*sqlRepository, error) {
 	return res, nil
 }
 
-func (s *sqlRepository) Get(ctx context.Context, id int64, userID int64) (*alert, error) {
-	alert := &alert{}
-	err := s.db.GetContext(ctx, alert,
-		`SELECT id, user_id, check_id, check_type, send_mail,last_send,
-			send_period
- 		FROM alerts
-		WHERE id = ?
-		AND user_id = ?`, id, userID)
-	return alert, err
-}
-
-func (s *sqlRepository) GetByUser(ctx context.Context, userID int64) (*[]alert, error) {
-	as := &[]alert{}
-	err := s.db.SelectContext(ctx, as,
-		`SELECT id, user_id, check_id, check_type, send_mail,last_send,
-			send_period
-		FROM alerts
-		WHERE user_id = ?`, userID)
-	return as, err
-}
-
-func (s *sqlRepository) GetByCheck(ctx context.Context, checkID int64, checkType string) (*[]alert, error) {
-	as := &[]alert{}
-	err := s.db.SelectContext(ctx, as,
-		`SELECT id, user_id, check_id, check_type, send_mail,last_send,
-			send_period
-		FROM alerts
-		WHERE check_id = ?
-			AND check_type = ?`, checkID, checkType)
-	return as, err
-}
-
 func (s *sqlRepository) Create(ctx context.Context, a *alert) (*alert, error) {
 	r, err := s.db.ExecContext(ctx,
 		`INSERT INTO alerts
@@ -134,17 +98,78 @@ func (s *sqlRepository) Create(ctx context.Context, a *alert) (*alert, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to get alert id, %w", err)
 	}
-	return s.Get(ctx, id, a.UserID)
+	return s.Read(ctx, id, a.UserID)
 }
 
-func (s *sqlRepository) Delete(ctx context.Context, id int64, userID int64) error {
+func (s *sqlRepository) Read(ctx context.Context, alertID, userID int64) (*alert, error) {
+	alert := &alert{}
+	err := s.db.GetContext(ctx, alert,
+		`SELECT id, user_id, check_id, check_type, send_mail,last_send,
+			send_period
+ 		FROM alerts
+		WHERE id = ?
+		AND user_id = ?`, alertID, userID)
+	return alert, err
+}
+
+func (s *sqlRepository) ReadAll(ctx context.Context, userID int64) (*[]alert, error) {
+	as := &[]alert{}
+	err := s.db.SelectContext(ctx, as,
+		`SELECT id, user_id, check_id, check_type, send_mail,last_send,
+			send_period
+		FROM alerts
+		WHERE user_id = ?`, userID)
+	return as, err
+}
+
+func (s *sqlRepository) ReadByCheck(ctx context.Context, checkID, userID int64, checkType string) (*[]alert, error) {
+	as := &[]alert{}
+	err := s.db.SelectContext(ctx, as,
+		`SELECT id, user_id, check_id, check_type, send_mail,last_send,
+			send_period
+		FROM alerts
+		WHERE check_id = ?
+			AND check_type = ?`, checkID, checkType)
+	return as, err
+}
+
+func (s *sqlRepository) Update(ctx context.Context, alert *alert) (*alert, error) {
+	r, err := s.db.ExecContext(ctx,
+		`UPDATE alerts
+		SET check_id = ?,
+			check_type = ?,
+			send_mail = ?,
+			send_period = ?
+		WHERE id = ? AND user_id = ?`,
+		alert.CheckID, alert.CheckType, alert.SendMail,
+		alert.SendPeriod, alert.ID, alert.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("unable to update alert, %w", err)
+	}
+	if i, err := r.RowsAffected(); err != nil {
+		return nil, fmt.Errorf(
+			"unable to get affected rows while updating alert , %w", err)
+	} else if i == 0 {
+		return nil, fmt.Errorf(
+			"no rows updated, no row with id=%v and user_id=%v", alert.ID, alert.UserID)
+	} else if i > 1 {
+		return nil, fmt.Errorf(
+			"multiple rows affected from update with id=%v and user_id=%v",
+			alert.ID, alert.UserID)
+	}
+	return s.Read(ctx, alert.ID, alert.UserID)
+
+}
+func (s *sqlRepository) Delete(ctx context.Context, alertID, userID int64) error {
 	_, err := s.db.ExecContext(ctx,
 		"DELETE FROM alerts WHERE id = ? AND user_id = ?",
-		id, userID)
+		alertID, userID)
 	return err
 }
 
-func (s *sqlRepository) UpdateLastSend(ctx context.Context, id int64) error {
-	_, err := s.db.ExecContext(ctx, "UPDATE alerts set last_send = ? WHERE id = ?", time.Now(), id)
+func (s *sqlRepository) UpdateLastSend(ctx context.Context, alertID, userID int64) error {
+	_, err := s.db.ExecContext(ctx,
+		"UPDATE alerts set last_send = ? WHERE id = ? AND user_id = ?",
+		time.Now(), alertID, userID)
 	return err
 }

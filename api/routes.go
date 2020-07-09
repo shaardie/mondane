@@ -23,24 +23,36 @@ func (s *server) routes() {
 	)
 
 	// Route user requests
-	userRouter := s.router.PathPrefix("/api/v1/user").Subrouter()
-	userRouter.Path("/").Methods(http.MethodPost).HandlerFunc(
+	userRouter := s.router.Path("/api/v1/user").Subrouter()
+	userRouter.Methods(http.MethodPost).HandlerFunc(
 		s.logRequest(s.enforceJSON(s.CreateUser())),
 	)
-	userRouter.Path("/").Methods(http.MethodGet).HandlerFunc(
+	userRouter.Methods(http.MethodGet).HandlerFunc(
 		s.logRequest(s.AuthenticateUser(s.ReadUser())),
 	)
-	userRouter.Path("/").Methods(http.MethodPatch).HandlerFunc(
+	userRouter.Methods(http.MethodPatch).HandlerFunc(
 		s.logRequest(s.AuthenticateUser(s.UpdateUser())),
 	)
-	userRouter.Path("/").Methods(http.MethodDelete).HandlerFunc(
+	userRouter.Methods(http.MethodDelete).HandlerFunc(
 		s.logRequest(s.AuthenticateUser(s.DeleteUser())),
 	)
 
 	// Route alert requests
 	alertRouter := s.router.PathPrefix("/api/v1/alert").Subrouter()
-	alertRouter.Path("/").Methods(http.MethodPost).HandlerFunc(
+	alertRouter.Methods(http.MethodPost).HandlerFunc(
 		s.logRequest(s.enforceJSON(s.AuthenticateUser(s.CreateAlert()))),
+	)
+	alertRouter.Path("").Methods(http.MethodGet).HandlerFunc(
+		s.logRequest(s.AuthenticateUser(s.ReadAllAlerts())),
+	)
+	alertRouter.Path("/{id:[1-9][0-9]*}").Methods(http.MethodGet).HandlerFunc(
+		s.logRequest(s.AuthenticateUser(s.ReadAlert())),
+	)
+	alertRouter.Path("/{id:[1-9][0-9]*}").Methods(http.MethodPut).HandlerFunc(
+		s.logRequest(s.enforceJSON(s.AuthenticateUser(s.UpdateAlert()))),
+	)
+	alertRouter.Path("/{id:[1-9][0-9]*}").Methods(http.MethodDelete).HandlerFunc(
+		s.logRequest(s.AuthenticateUser(s.DeleteAlert())),
 	)
 
 	// Use initHandler in all requests

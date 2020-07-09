@@ -72,6 +72,9 @@ func (s *sqlRepository) Create(ctx context.Context, u *user) (int64, error) {
 			(email, firstname, surname, password, activated, activation_token)
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		u.Email, u.Firstname, u.Surname, u.Password, u.Activated, u.ActivationToken)
+	if err != nil {
+		return 0, fmt.Errorf("unable to insert into users, %w", err)
+	}
 	id, err := r.LastInsertId()
 	if err != nil {
 		return 0, fmt.Errorf("unable to get id, %w", err)

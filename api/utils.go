@@ -97,19 +97,22 @@ func (s *server) response(w http.ResponseWriter, r *http.Request, statuscode int
 		"proto", r.Proto,
 		"status code", statuscode,
 		"request error", requestErr,
+		"response", response,
 	)
+
+	// Writer status code
+	w.WriteHeader(statuscode)
+
 	if response != nil {
 		if err := s.writeJSON(w, r, response); err != nil {
 			s.logger.Errorw("Failure while writing response",
 				"error", err,
 			)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
 		}
-		http.Error(w, "", http.StatusInternalServerError)
-		return
 	}
 
-	// Writer status code
-	w.WriteHeader(statuscode)
 	return
 }
 
