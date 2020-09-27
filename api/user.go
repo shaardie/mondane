@@ -1,37 +1,39 @@
 package api
 
 import (
-	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"net/http"
 
-	"github.com/shaardie/mondane/mail/proto"
-	userService "github.com/shaardie/mondane/user/proto"
+	uuid "github.com/satori/go.uuid"
+	"github.com/shaardie/mondane/db"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
-	cookieName       = "mondane-login"
-	registrationMail = `
-Hej {{.Firstname}},
-
-please register to the Mondane Service by using the link below:
-
-URL: {{.URL}}
-
-Regards
-`
+	cookieName = "mondane-login"
 )
 
 type userKey struct{}
 
-func (s *server) CreateUser() http.HandlerFunc {
+func (s *Service) createUser() http.HandlerFunc {
+
+	type userJSON struct {
+		Email     string `json:"email"`
+		Firstname string `json:"firstname"`
+		Surname   string `json:"surname"`
+		Password  string `json:"password"`
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get new User
-		newUser := &userService.CreateUser{}
-		err := readJSON(r, newUser)
+
+		user := &userJSON{}
+
+		err := json.NewDecoder(r.Body).Decode(user)
 		if err != nil {
 			s.response(
 				w, r, http.StatusBadRequest,
@@ -39,117 +41,143 @@ func (s *server) CreateUser() http.HandlerFunc {
 			return
 		}
 
-		activationToken, err := s.user.Create(r.Context(), newUser)
+		// Verify that email and password are set
+		if user.Email == "" || user.Password == "" {
+			s.response(w, r, http.StatusBadRequest,
+				nil, responseError{"email and password are mandatory"})
+		}
+
+		// Generate hash from password
+		password, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 		if err != nil {
-			s.handleGRPCError(w, r, err)
+			s.response(w, r, http.StatusInternalServerError, fmt.Errorf("unable to generate password, %w", err), internalError)
 			return
 		}
 
-		// Create a new template and parse the letter into it.
-		t := template.Must(template.New("letter").Parse(registrationMail))
-		var buf bytes.Buffer
-		err = t.Execute(&buf, struct {
-			Firstname string
-			URL       string
-		}{
-			Firstname: newUser.Firstname,
-			URL: fmt.Sprintf(
-				"http://%v/api/v1/register?token=%v",
-				r.Host, activationToken.Token),
-		})
+		// Generate registration token
+		token, err := generateToken(32)
 		if err != nil {
-			s.response(w, r, http.StatusInternalServerError,
-				err, internalError)
+			s.response(w, r, http.StatusInternalServerError, fmt.Errorf("unable to generate actication token, %w", err), internalError)
 			return
 		}
 
-		_, err = s.mail.SendMail(r.Context(), &proto.Mail{
-			Recipient: newUser.Email,
-			Subject:   "Mondane Registration",
-			Message:   buf.String(),
-		})
+		userDB := &db.User{
+			Email:           user.Email,
+			Firstname:       user.Firstname,
+			Surname:         user.Surname,
+			ActivationToken: token,
+			Password:        password,
+		}
+
+		result := s.db.WithContext(r.Context()).Create(userDB)
+		if result.Error != nil {
+			s.response(w, r, http.StatusBadRequest, fmt.Errorf("unable to create user in database, %w", result.Error), responseError{"user already exist"})
+		}
+
+		err = s.mail.SendRegistration(r.Context(), userDB, r.Host)
 		if err != nil {
-			s.handleGRPCError(w, r, err)
+			s.response(w, r, http.StatusInternalServerError, err, internalError)
 			return
 		}
 		s.response(w, r, http.StatusOK, nil, nil)
 	}
 }
 
-func (s *server) ActivateUser() http.HandlerFunc {
+func (s *Service) activateUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get token from url
 		token := r.FormValue("token")
 
-		// Get user from database via token
-		_, err := s.user.Activate(r.Context(), &userService.ActivationToken{Token: token})
-		if err != nil {
-			s.handleGRPCError(w, r, err)
+		result := s.db.WithContext(r.Context()).Model(&db.User{}).Where("activation_token = ?", token).Update("activated", true)
+		if result.Error != nil {
+			s.response(
+				w, r, http.StatusBadRequest,
+				fmt.Errorf("unable to activate with token %s, %w", token, result.Error),
+				responseError{"activation not successful"})
 			return
 		}
 		s.response(w, r, http.StatusOK, nil, nil)
 	}
 }
 
-func (s *server) ReadUser() http.HandlerFunc {
+func (s *Service) readUser() http.HandlerFunc {
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := r.Context().Value(userKey{}).(*userService.User)
+		id, ok := r.Context().Value(userKey{}).(uuid.UUID)
 		if !ok {
 			s.response(w, r, http.StatusInternalServerError,
 				errors.New("No user in context"), internalError)
 			return
 		}
-		s.response(w, r, http.StatusOK, nil, u)
+		s.logger.Error(id)
+
+		user := &db.User{}
+		if err := s.db.WithContext(r.Context()).First(user, id).Error; err != nil {
+			s.response(w, r, http.StatusInternalServerError, err, internalError)
+			return
+		}
+		s.response(w, r, http.StatusOK, nil, user)
 	}
 }
 
-func (s *server) UpdateUser() http.HandlerFunc {
+func (s *Service) updateUser() http.HandlerFunc {
+
+	type updateJSON struct {
+		Firstname string `json:"firstname"`
+		Surname   string `json:"surname"`
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := r.Context().Value(userKey{}).(*userService.User)
+		userID, ok := r.Context().Value(userKey{}).(uuid.UUID)
 		if !ok {
 			s.response(w, r, http.StatusInternalServerError,
-				errors.New("No user in context"), internalError)
+				errors.New("no user id in context"), internalError)
 			return
 		}
 
 		// Get Updates
-		updates := &userService.User{}
-		err := readJSON(r, updates)
+		updates := &updateJSON{}
+		err := json.NewDecoder(r.Body).Decode(updates)
 		if err != nil {
-			s.response(w, r, http.StatusBadRequest, err, jsonError)
+			s.response(
+				w, r, http.StatusBadRequest,
+				err, jsonError)
 			return
 		}
 
-		// Set id of the user
-		updates.Id = u.Id
-
-		pUser, err := s.user.Update(r.Context(), updates)
-		if err != nil {
-			s.handleGRPCError(w, r, err)
+		user := &db.User{ID: userID}
+		result := s.db.Model(user).Updates(
+			&db.User{
+				Surname:   updates.Surname,
+				Firstname: updates.Firstname,
+			},
+		)
+		if result.Error != nil {
+			s.response(w, r, http.StatusInternalServerError, err, internalError)
 			return
 		}
-		s.response(w, r, http.StatusOK, nil, pUser)
+
+		s.response(w, r, http.StatusOK, nil, user)
 	}
 }
 
-func (s *server) DeleteUser() http.HandlerFunc {
+func (s *Service) deleteUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := r.Context().Value(userKey{}).(*userService.User)
+		userID, ok := r.Context().Value(userKey{}).(uuid.UUID)
 		if !ok {
 			s.response(w, r, http.StatusInternalServerError,
 				errors.New("No user in context"), internalError)
 			return
 		}
-		_, err := s.user.Delete(r.Context(), &userService.Id{Id: u.Id})
+		err := s.db.WithContext(r.Context()).Delete(&db.User{}, userID).Error
 		if err != nil {
-			s.handleGRPCError(w, r, err)
+			s.response(w, r, http.StatusInternalServerError, err, internalError)
 			return
 		}
 		s.response(w, r, http.StatusOK, nil, nil)
 	}
 }
 
-func (s *server) AuthenticateUser(h http.HandlerFunc) http.HandlerFunc {
+func (s *Service) authenticateUser(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(cookieName)
 		if err != nil {
@@ -158,41 +186,70 @@ func (s *server) AuthenticateUser(h http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		validatedToken, err := s.user.ValidateToken(
-			r.Context(), &userService.Token{Token: cookie.Value})
+		claims, err := s.tokenService.decode(cookie.Value)
 		if err != nil {
-			s.handleGRPCError(w, r, err)
-			return
-		}
-
-		if !validatedToken.Valid {
-			s.response(w, r, http.StatusUnauthorized, nil, unauthError)
+			s.response(w, r, http.StatusUnauthorized,
+				err, unauthError)
 			return
 		}
 
 		ctx := context.WithValue(r.Context(),
-			userKey{}, validatedToken.User)
+			userKey{}, claims.UserID)
 		h(w, r.WithContext(ctx))
 	}
 }
 
-func (s *server) CreateLogin() http.HandlerFunc {
+func (s *Service) createUserAuthentication() http.HandlerFunc {
+
+	type authJSON struct {
+		Email    string
+		Password string
+	}
+
+	authError := responseError{"authentication failed"}
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get authentication
-		authUser := &userService.AuthUser{}
-		err := readJSON(r, authUser)
+		auth := &authJSON{}
+
+		err := json.NewDecoder(r.Body).Decode(auth)
 		if err != nil {
 			s.response(
 				w, r, http.StatusBadRequest,
-				err, responseError{"Improper JSON"})
+				err, jsonError)
 			return
 		}
 
-		// Get token
-		token, err := s.user.Auth(r.Context(), authUser)
-		if err != nil {
-			s.handleGRPCError(w, r, err)
+		user := &db.User{Email: auth.Email}
+		result := s.db.WithContext(r.Context()).First(user)
+		if result.Error != nil {
+			s.response(
+				w, r, http.StatusBadRequest,
+				result.Error, authError,
+			)
 			return
+		}
+
+		if !user.Activated {
+			s.response(
+				w, r, http.StatusBadRequest,
+				nil, authError,
+			)
+			return
+		}
+
+		err = bcrypt.CompareHashAndPassword(user.Password, []byte(auth.Password))
+		if err != nil {
+			s.response(
+				w, r, http.StatusBadRequest,
+				err, authError,
+			)
+			return
+		}
+
+		token, err := s.tokenService.encode(user.ID)
+		if err != nil {
+			s.response(w, r, http.StatusInternalServerError,
+				err, internalError)
 		}
 
 		// Set cookie
@@ -201,8 +258,19 @@ func (s *server) CreateLogin() http.HandlerFunc {
 			&http.Cookie{
 				Name:     cookieName,
 				HttpOnly: true,
-				Value:    token.Token,
+				Value:    token,
+				Path:     "/",
 			})
 		s.response(w, r, http.StatusOK, nil, nil)
 	}
+}
+
+// generateToken generates a url friendly token secure token
+func generateToken(n int) (string, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }

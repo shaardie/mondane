@@ -1,16 +1,2 @@
 /env
-*.db
-coverage.out
-*.pb.go
-
-/user-client
-/user-service
-/mail-service
-/mail-client
-/httpcheck-service
-/httpcheck-client
-/alert-service
-/alert-client
-/checkmanager-service
-/checkmanager-client
-/api-service
+mondane

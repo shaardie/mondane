@@ -1,24 +1,17 @@
 module github.com/shaardie/mondane
 
-go 1.14
+go 1.15
 
 require (
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
-	github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/go-sql-driver/mysql v1.4.0
-	github.com/golang/protobuf v1.4.1
-	github.com/gorilla/mux v1.7.4
-	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
-	github.com/jmoiron/sqlx v1.2.0
+	github.com/gorilla/mux v1.8.0
 	github.com/joeshaw/envdecode v0.0.0-20200121155833-099f1fc765bd
-	go.uber.org/zap v1.15.0
-	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
-	golang.org/x/sys v0.0.0-20190531175056-4c3a928424d2 // indirect
-	golang.org/x/text v0.3.2 // indirect
-	google.golang.org/grpc v1.29.1
-	google.golang.org/protobuf v1.24.0
-	gopkg.in/alecthomas/kingpin.v2 v2.2.6
+	github.com/satori/go.uuid v1.2.0
+	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/zap v1.16.0
+	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
+	gorm.io/driver/mysql v1.0.1
+	gorm.io/gorm v1.20.1
 )
