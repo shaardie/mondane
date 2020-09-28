@@ -30,6 +30,7 @@ type Service struct {
 	dialer           *gomail.Dialer
 	config           *config
 	registrationMail *template.Template
+	failureMail      *template.Template
 	db               *gorm.DB
 }
 
@@ -50,19 +51,45 @@ URL: {{.URL}}
 
 Regards
 `
+
+	failureMail = `
+Hej {{.Firstname}},
+
+the following check failed:
+
+{{.FailureText}}
+
+Regards,
+`
 )
 
-func (s *Service) SendStatus(ctx context.Context, userID uuid.UUID) error {
-	user := &db.User{}
-	if err := s.db.WithContext(ctx).Preload("HTTPChecks").First(user, userID).Error; err != nil {
-		return fmt.Errorf("unable to get user with id %v from database, %w", userID, err)
+// SendFailure sends a failure mail
+func (s *Service) SendFailure(ctx context.Context, failureText string, id uuid.UUID) error {
+
+	user := db.User{}
+	err := s.db.WithContext(ctx).First(&user, id).Error
+	if err != nil {
+		return fmt.Errorf("unable to get user with id %v from database, %w", id, err)
 	}
 
-	if err := s.SendMail(ctx, Mail{
+	var buf bytes.Buffer
+	err = s.failureMail.Execute(&buf, struct {
+		Firstname   string
+		FailureText string
+	}{
+		Firstname:   user.Firstname,
+		FailureText: failureText,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to create template, %w", err)
+	}
+
+	err = s.SendMail(ctx, Mail{
 		Recipient: user.Email,
-		Subject:   "Mondane Status",
-		Message:   "Somethings wrong",
-	}); err != nil {
+		Subject:   "Mondane Failure",
+		Message:   buf.String(),
+	})
+	if err != nil {
 		return fmt.Errorf("unable to send mail, %w", err)
 	}
 	return nil
@@ -111,10 +138,11 @@ func (s *Service) SendMail(ctx context.Context, mail Mail) error {
 	// Dial and Send
 	err := s.dialer.DialAndSend(msg)
 	if err != nil {
-		log.Printf("Failure sending mail: %v", err)
+		s.logger.Errorw("Failure sending mail", "error", err)
 		return fmt.Errorf("unable to send mail, %v", err)
 	}
 
+	s.logger.Infow("Sent mail", "mail", mail)
 	log.Printf("Sent mail to %v", mail.Recipient)
 	return nil
 }
@@ -145,7 +173,8 @@ func New(logger *zap.SugaredLogger, db *gorm.DB) (*Service, error) {
 	s.dialer = gomail.NewDialer(s.config.Server, s.config.Port, s.config.Username, s.config.Password)
 
 	// Create templates
-	s.registrationMail = template.Must(template.New("letter").Parse(registrationMail))
+	s.registrationMail = template.Must(template.New("registration").Parse(registrationMail))
+	s.failureMail = template.Must(template.New("failure").Parse(failureMail))
 
 	return s, nil
 }

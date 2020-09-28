@@ -43,14 +43,26 @@ type httpCheck struct {
 	HTTPResults []httpResult   `gorm:"ForeignKey:CheckID;References:CheckID;" json:"-"`
 }
 
-func (c *httpCheck) ID() uint {
+func (c *httpCheck) GetID() uint {
 	return c.CheckID
 }
 
-func (c *httpCheck) DoCheck(t time.Time) error {
+func (c *httpCheck) GetUserID() uuid.UUID {
+	return c.UserID
+}
+
+func (c *httpCheck) GetType() string {
+	return "http"
+}
+
+func (c *httpCheck) FailureText() string {
+	return fmt.Sprintf("HTTP Check for url %v failed.", c.URL)
+}
+
+func (c *httpCheck) DoCheck(t time.Time) (bool, error) {
 	result := &httpResult{
 		Timestamp: t,
-		CheckID:   c.ID(),
+		CheckID:   c.GetID(),
 	}
 
 	before := time.Now()
@@ -67,10 +79,10 @@ func (c *httpCheck) DoCheck(t time.Time) error {
 
 	err = c.db.Create(result).Error
 	if err != nil {
-		return fmt.Errorf("unable to save result %v of check %v, %w", c, result, err)
+		return result.Success, fmt.Errorf("unable to save result %v of check %v, %w", c, result, err)
 	}
 
-	return nil
+	return result.Success, nil
 }
 
 type collectorHTTP struct {

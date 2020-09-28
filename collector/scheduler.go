@@ -11,21 +11,23 @@ type scheduler struct {
 	storage      map[uint]*runner
 	storageMutex *sync.Mutex
 	logger       *zap.SugaredLogger
+	alerter      Alerter
 }
 
-func newScheduler(logger *zap.SugaredLogger) *scheduler {
+func newScheduler(logger *zap.SugaredLogger, alerter Alerter) *scheduler {
 	return &scheduler{
 		logger:       logger,
 		storage:      make(map[uint]*runner),
 		storageMutex: &sync.Mutex{},
+		alerter:      alerter,
 	}
 }
 
-func (s *scheduler) Add(c check) error {
+func (s *scheduler) Add(c Check) error {
 	s.storageMutex.Lock()
 	defer s.storageMutex.Unlock()
-	r := newRunner(s.logger, c)
-	s.storage[c.ID()] = r
+	r := newRunner(s.logger, c, s.alerter)
+	s.storage[c.GetID()] = r
 	r.start()
 	return nil
 }

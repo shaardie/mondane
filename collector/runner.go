@@ -7,21 +7,23 @@ import (
 )
 
 type runner struct {
-	check    check
+	check    Check
 	ticker   *time.Ticker
 	failed   bool
 	stopping chan bool
 	stopped  chan bool
 	logger   *zap.SugaredLogger
+	alerter  Alerter
 }
 
-func newRunner(logger *zap.SugaredLogger, check check) *runner {
+func newRunner(logger *zap.SugaredLogger, check Check, alerter Alerter) *runner {
 	return &runner{
 		check:    check,
 		ticker:   time.NewTicker(15 * time.Second),
 		stopping: make(chan bool, 1),
 		stopped:  make(chan bool, 1),
 		logger:   logger,
+		alerter:  alerter,
 	}
 }
 
@@ -56,9 +58,14 @@ func (mr *runner) run() {
 			return
 		case t := <-mr.ticker.C:
 			mr.logger.Infow("Memory Runner do check", "check", mr.check)
-			err := mr.check.DoCheck(t)
+			success, err := mr.check.DoCheck(t)
 			if err != nil {
 				mr.logger.Errorw("Memory Runner check failed", "check", mr.check, "error", err)
+				break
+			}
+			err = mr.alerter.Trigger(mr.check, success)
+			if err != nil {
+				mr.logger.Errorw("Memory Runner failed to trigger alert", "check", mr.check, "error", err)
 				break
 			}
 		default:

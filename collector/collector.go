@@ -12,10 +12,10 @@ var (
 )
 
 // New initializes the collectors
-func New(logger *zap.SugaredLogger, db *gorm.DB) ([]Collector, error) {
+func New(logger *zap.SugaredLogger, db *gorm.DB, alerter Alerter) ([]Collector, error) {
 	services := []Collector{}
 	for key, f := range factories {
-		service, err := f(logger, db, newScheduler(logger))
+		service, err := f(logger, db, newScheduler(logger, alerter))
 		if err != nil {
 			return nil, fmt.Errorf("unable to create check service %v, %w", key, err)
 		}

@@ -46,18 +46,43 @@ type tlsCheck struct {
 	TLSResults []tlsResult    `gorm:"ForeignKey:CheckID;References:CheckID;" json:"-"`
 }
 
-func (c *tlsCheck) ID() uint {
+func (c *tlsCheck) GetID() uint {
 	return c.CheckID
 }
 
-func (c *tlsCheck) DoCheck(t time.Time) error {
+func (c *tlsCheck) GetUserID() uuid.UUID {
+	return c.UserID
+}
+
+func (c *tlsCheck) GetType() string {
+	return "tls"
+}
+
+func (c *tlsCheck) FailureText() string {
+	return fmt.Sprintf("TLS Check for host %v on port %v failed.", c.Host, c.Port)
+}
+
+func (c *tlsCheck) dial() (*tls.Conn, error) {
+	conn, err := tls.Dial("tcp", fmt.Sprintf("%v:%v", c.Host, c.Port), nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to tcp, %w", err)
+	}
+	tlsConn := tls.Client(conn, nil)
+	err = tlsConn.Handshake()
+	if err != nil {
+		return nil, fmt.Errorf("unable to tls handshake, %w", err)
+	}
+	return tlsConn, nil
+}
+
+func (c *tlsCheck) DoCheck(t time.Time) (bool, error) {
 	result := &tlsResult{
 		Timestamp: t,
-		CheckID:   c.ID(),
+		CheckID:   c.GetID(),
 	}
 
 	before := time.Now()
-	conn, err := tls.Dial("tcp", fmt.Sprintf("%v:%v", c.Host, c.Port), nil)
+	conn, err := c.dial()
 	result.Duration = time.Now().Sub(before)
 
 	if err != nil {
@@ -74,10 +99,10 @@ func (c *tlsCheck) DoCheck(t time.Time) error {
 
 	err = c.db.Create(result).Error
 	if err != nil {
-		return fmt.Errorf("unable to save result %v of check %v, %w", c, result, err)
+		return result.Success, fmt.Errorf("unable to save result %v of check %v, %w", c, result, err)
 	}
 
-	return nil
+	return result.Success, nil
 }
 
 func tlsVersionName(id uint16) string {

@@ -8,9 +8,12 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-type check interface {
-	ID() uint
-	DoCheck(time.Time) error
+type Check interface {
+	GetID() uint
+	GetUserID() uuid.UUID
+	GetType() string
+	FailureText() string
+	DoCheck(time.Time) (bool, error)
 }
 
 type Collector interface {
@@ -22,4 +25,8 @@ type Collector interface {
 	ReadResults(ctx context.Context, userID uuid.UUID, id uint) (interface{}, error)
 	Update(ctx context.Context, userID uuid.UUID, id uint, r io.Reader) (interface{}, error)
 	Delete(ctx context.Context, userID uuid.UUID, id uint) error
+}
+
+type Alerter interface {
+	Trigger(check Check, success bool) error
 }

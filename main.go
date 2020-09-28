@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/shaardie/mondane/alert"
 	"github.com/shaardie/mondane/api"
 	"github.com/shaardie/mondane/collector"
 	"github.com/shaardie/mondane/mail"
@@ -37,7 +38,13 @@ func mainWithError() error {
 		return err
 	}
 
-	checkServices, err := collector.New(logger, db)
+	alerter, err := alert.New(logger, db, mail)
+	if err != nil {
+		logger.Errorw("Unable to create alert service", "error", err)
+		return err
+	}
+
+	checkServices, err := collector.New(logger, db, alerter)
 	if err != nil {
 		logger.Errorw("Unable to create collectors", "error", err)
 	}
